@@ -1,0 +1,17 @@
+# Dependências resolvidas a partir de noxy.mod / noxy.sum
+noxy_libs/
+
+# Binários e artefatos de build
+*.exe
+*.dll
+*.so
+*.dylib
+bin/
+build/
+
+# Sistema operacional / editores
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,583 @@
+// tests/run.nx — suite da simulacao. Roda sem abrir janela:
+//     noxy tests/run.nx      (a partir da raiz do projeto)
+use sys
+use src.vec as vec
+use src.rng as rng
+use src.world as wld
+use src.combat as combat
+use src.waves as waves
+use src.upgrades as up
+use src.flow as flow
+
+let fails = 0
+let total = 0
+
+func check(name: string, cond: bool) -> void
+    total = total + 1
+    if cond then
+        print(f"  ok   {name}")
+    else
+        print(f"FAIL   {name}")
+        fails = fails + 1
+    end
+end
+
+func near(a: float, b: float, tol: float) -> bool
+    let d = a - b
+    if d < 0.0 then
+        d = -d
+    end
+    return d <= tol
+end
+
+func report() -> void
+    print("")
+    print(f"{total - fails}/{total} passaram")
+    if fails > 0 then
+        sys.exit(1)
+    end
+end
+
+func test_vec() -> void
+    print("vec")
+    check("sqrt(0) = 0", near(vec.sqrt(0.0), 0.0, 0.0001))
+    check("sqrt(1) = 1", near(vec.sqrt(1.0), 1.0, 0.0001))
+    check("sqrt(2) = 1.4142", near(vec.sqrt(2.0), 1.41421356, 0.0001))
+    check("sqrt(0.25) = 0.5", near(vec.sqrt(0.25), 0.5, 0.0001))
+    check("sqrt(1e6) = 1000", near(vec.sqrt(1000000.0), 1000.0, 0.001))
+    check("sqrt de negativo nao explode", near(vec.sqrt(-4.0), 0.0, 0.0001))
+
+    let n: vec.V = vec.norm(vec.V(3.0, 4.0))
+    check("norm(3,4).x = 0.6", near(n.x, 0.6, 0.0001))
+    check("norm(3,4).y = 0.8", near(n.y, 0.8, 0.0001))
+
+    let z: vec.V = vec.norm(vec.V(0.0, 0.0))
+    check("norm do vetor zero nao divide por zero", z.x == 0.0 && z.y == 0.0)
+
+    let p: vec.V = vec.perp(vec.V(2.0, 5.0))
+    check("perp e ortogonal", near(p.x * 2.0 + p.y * 5.0, 0.0, 0.0001))
+    check("perp preserva o comprimento", near(vec.len(p), vec.len(vec.V(2.0, 5.0)), 0.0001))
+
+    check("len(3,4) = 5", near(vec.len(vec.V(3.0, 4.0)), 5.0, 0.0001))
+    check("dist((1,1),(4,5)) = 5", near(vec.dist(vec.V(1.0, 1.0), vec.V(4.0, 5.0)), 5.0, 0.0001))
+
+    let s: vec.V = vec.scale(vec.V(2.0, -3.0), 2.5)
+    check("scale multiplica os dois eixos", s.x == 5.0 && s.y == -7.5)
+
+    let a: vec.V = vec.add(vec.V(1.0, 2.0), vec.V(10.0, 20.0))
+    check("add soma", a.x == 11.0 && a.y == 22.0)
+
+    let b: vec.V = vec.sub(vec.V(10.0, 20.0), vec.V(1.0, 2.0))
+    check("sub subtrai", b.x == 9.0 && b.y == 18.0)
+end
+
+func test_rng() -> void
+    print("rng")
+    let fora = 0
+    let viu_lo = false
+    let viu_hi = false
+    for i in range(1000) do
+        let v: int = rng.rand_int(3, 7)
+        if v < 3 || v > 7 then
+            fora = fora + 1
+        end
+        if v == 3 then
+            viu_lo = true
+        end
+        if v == 7 then
+            viu_hi = true
+        end
+    end
+    check("rand_int fica no intervalo em 1000 sorteios", fora == 0)
+    check("rand_int alcanca o limite inferior", viu_lo)
+    check("rand_int alcanca o limite superior (inclusivo)", viu_hi)
+    check("rand_int com lo == hi devolve lo", rng.rand_int(4, 4) == 4)
+    check("rand_int com hi < lo devolve lo", rng.rand_int(9, 2) == 9)
+
+    let ffora = 0
+    for i in range(500) do
+        let f: float = rng.rand_float(-2.0, 5.0)
+        if f < -2.0 || f > 5.0 then
+            ffora = ffora + 1
+        end
+    end
+    check("rand_float fica no intervalo", ffora == 0)
+
+    let mau = 0
+    for i in range(200) do
+        let d: vec.V = rng.rand_dir()
+        if !near(vec.len(d), 1.0, 0.0001) then
+            mau = mau + 1
+        end
+    end
+    check("rand_dir e sempre unitario", mau == 0)
+end
+
+func test_world() -> void
+    print("world")
+    let w: wld.World = wld.new_world()
+    check("jogador comeca no centro da arena", w.player.pos.x == wld.ARENA_W / 2.0 && w.player.pos.y == wld.ARENA_H / 2.0)
+    check("vida cheia", w.player.hp == 100.0 && w.player.hp_max == 100.0)
+    check("um tiro por vez no comeco", w.player.shots == 1)
+    check("sem perfuracao no comeco", w.player.pierce == 0)
+    check("pronto para atirar", w.player.fire_cd == 0.0)
+    check("sem invencibilidade no comeco", w.player.invuln == 0.0)
+    check("mira inicial nao e o vetor zero", vec.len(w.player.aim) > 0.5)
+    check("mundo comeca vazio", length(w.enemies) == 0 && length(w.bullets) == 0 && length(w.particles) == 0)
+    check("comeca na tela de jogo", w.screen == 0)
+    check("placar zerado", w.kills == 0 && w.wave == 0 && w.time == 0.0)
+    check("arena e maior que a janela", wld.ARENA_W > wld.VIEW_W && wld.ARENA_H > wld.VIEW_H)
+
+    let a: wld.World = wld.new_world()
+    let b: wld.World = wld.new_world()
+    append(ref a.enemies, wld.Enemy(vec.V(0.0, 0.0), vec.V(0.0, 0.0), 0, 1.0, 1.0, 1.0, 1.0, 0.0))
+    check("mundos novos sao independentes", length(b.enemies) == 0)
+end
+
+func test_move() -> void
+    print("combat: movimento")
+    let w: wld.World = wld.new_world()
+    let x0 = w.player.pos.x
+    combat.move_player(ref w, vec.V(1.0, 0.0), vec.V(1.0, 0.0), 1.0)
+    check("anda a speed px por segundo", near(w.player.pos.x, x0 + 220.0, 0.001))
+
+    let d: wld.World = wld.new_world()
+    combat.move_player(ref d, vec.V(1.0, 1.0), vec.V(1.0, 0.0), 1.0)
+    let andou: float = vec.dist(d.player.pos, vec.V(wld.ARENA_W / 2.0, wld.ARENA_H / 2.0))
+    check("diagonal anda o mesmo que a reta", near(andou, 220.0, 0.001))
+
+    let s: wld.World = wld.new_world()
+    combat.move_player(ref s, vec.V(0.0, 0.0), vec.V(1.0, 0.0), 1.0)
+    check("sem input nao anda", s.player.pos.x == wld.ARENA_W / 2.0 && s.player.pos.y == wld.ARENA_H / 2.0)
+
+    let p: wld.World = wld.new_world()
+    for i in range(60) do
+        combat.move_player(ref p, vec.V(-1.0, -1.0), vec.V(1.0, 0.0), 1.0)
+    end
+    check("nao sai pela borda esquerda", p.player.pos.x >= wld.PLAYER_R)
+    check("nao sai pela borda de cima", p.player.pos.y >= wld.PLAYER_R)
+    for i in range(120) do
+        combat.move_player(ref p, vec.V(1.0, 1.0), vec.V(1.0, 0.0), 1.0)
+    end
+    check("nao sai pela borda direita", p.player.pos.x <= wld.ARENA_W - wld.PLAYER_R)
+    check("nao sai pela borda de baixo", p.player.pos.y <= wld.ARENA_H - wld.PLAYER_R)
+
+    let m: wld.World = wld.new_world()
+    combat.move_player(ref m, vec.V(0.0, 0.0), vec.V(0.0, 30.0), 0.016)
+    check("mira normaliza", near(vec.len(m.player.aim), 1.0, 0.0001))
+    check("mira aponta para o alvo", near(m.player.aim.y, 1.0, 0.0001))
+    combat.move_player(ref m, vec.V(0.0, 0.0), vec.V(0.0, 0.0), 0.016)
+    check("mira nula preserva a anterior", near(m.player.aim.y, 1.0, 0.0001))
+
+    let t: wld.World = wld.new_world()
+    t.player.fire_cd = 0.5
+    t.player.invuln = 0.5
+    t.shake = 10.0
+    combat.move_player(ref t, vec.V(0.0, 0.0), vec.V(1.0, 0.0), 0.25)
+    check("fire_cd decai com dt", near(t.player.fire_cd, 0.25, 0.0001))
+    check("invuln decai com dt", near(t.player.invuln, 0.25, 0.0001))
+    check("tempo de partida acumula", near(t.time, 0.25, 0.0001))
+    check("tremida decai", t.shake < 10.0)
+    combat.move_player(ref t, vec.V(0.0, 0.0), vec.V(1.0, 0.0), 5.0)
+    check("fire_cd nao fica negativo", t.player.fire_cd >= 0.0)
+    check("invuln nao fica negativo", t.player.invuln >= 0.0)
+    check("tremida nao fica negativa", t.shake >= 0.0)
+end
+
+func test_fire() -> void
+    print("combat: tiro")
+    let w: wld.World = wld.new_world()
+    w.player.aim = vec.V(1.0, 0.0)
+    combat.fire(ref w)
+    check("um tiro sai uma bala", length(w.bullets) == 1)
+    check("a bala herda o dano do jogador", w.bullets[0].damage == 10.0)
+    check("a bala sai a bullet_speed", near(vec.len(w.bullets[0].vel), 600.0, 0.001))
+    check("a bala nasce a frente do jogador", w.bullets[0].pos.x > w.player.pos.x)
+    check("a bala nasce sem acertos", w.bullets[0].hits == 0)
+    check("atirar poe a arma em recarga", near(w.player.fire_cd, 0.2, 0.0001))
+
+    combat.fire(ref w)
+    check("nao atira durante a recarga", length(w.bullets) == 1)
+
+    w.player.fire_cd = 0.0
+    combat.fire(ref w)
+    check("atira de novo quando a recarga acaba", length(w.bullets) == 2)
+
+    let l: wld.World = wld.new_world()
+    l.player.aim = vec.V(1.0, 0.0)
+    l.player.shots = 3
+    combat.fire(ref l)
+    check("leque sai com tres balas", length(l.bullets) == 3)
+    check("a bala do meio segue a mira", near(l.bullets[0].vel.y, 0.0, 0.001))
+    check("as laterais abrem para os dois lados", l.bullets[1].vel.y * l.bullets[2].vel.y < 0.0)
+    check("as tres saem na mesma velocidade", near(vec.len(l.bullets[1].vel), 600.0, 0.001) && near(vec.len(l.bullets[2].vel), 600.0, 0.001))
+
+    let c: wld.World = wld.new_world()
+    c.player.aim = vec.V(1.0, 0.0)
+    c.player.fire_rate = 10.0
+    combat.fire(ref c)
+    check("cadencia maior encurta a recarga", near(c.player.fire_cd, 0.1, 0.0001))
+
+    let m: wld.World = wld.new_world()
+    m.player.aim = vec.V(1.0, 0.0)
+    combat.fire(ref m)
+    let x0 = m.bullets[0].pos.x
+    combat.move_bullets(ref m, 0.1)
+    check("a bala anda vel * dt", near(m.bullets[0].pos.x, x0 + 60.0, 0.001))
+    check("a bala envelhece", near(m.bullets[0].life, 1.1, 0.0001))
+
+    m.bullets[0].life = 0.05
+    combat.move_bullets(ref m, 0.1)
+    check("a bala expira zerando a vida", m.bullets[0].life <= 0.0)
+    check("move_bullets nao remove nada", length(m.bullets) == 1)
+
+    let o: wld.World = wld.new_world()
+    o.player.aim = vec.V(1.0, 0.0)
+    combat.fire(ref o)
+    o.bullets[0].pos.x = wld.ARENA_W + 5.0
+    combat.move_bullets(ref o, 0.016)
+    check("bala fora da arena morre", o.bullets[0].life <= 0.0)
+end
+
+func test_enemies() -> void
+    print("combat: inimigos")
+    let w: wld.World = wld.new_world()
+    let alvo: vec.V = w.player.pos
+
+    let c: wld.Enemy = combat.make_enemy(0, vec.V(10.0, 10.0))
+    check("chaser tem 20 de vida", c.hp == 20.0)
+    check("chaser anda a 90", c.speed == 90.0)
+    let r: wld.Enemy = combat.make_enemy(1, vec.V(10.0, 10.0))
+    check("rusher e rapido e fragil", r.speed == 170.0 && r.hp == 10.0)
+    let t: wld.Enemy = combat.make_enemy(2, vec.V(10.0, 10.0))
+    check("tank e lento e duro", t.speed == 55.0 && t.hp == 60.0)
+    check("tank machuca mais no contato", t.touch > c.touch)
+    check("kind desconhecido vira chaser", combat.make_enemy(99, vec.V(0.0, 0.0)).kind == 0)
+
+    append(ref w.enemies, combat.make_enemy(0, vec.V(alvo.x - 400.0, alvo.y)))
+    let antes: float = vec.dist(w.enemies[0].pos, alvo)
+    combat.update_enemies(ref w, 1.0)
+    let depois: float = vec.dist(w.enemies[0].pos, alvo)
+    check("o inimigo se aproxima do jogador", depois < antes)
+    check("anda speed * dt", near(antes - depois, 90.0, 0.01))
+
+    w.enemies[0].flash = 0.1
+    combat.update_enemies(ref w, 0.05)
+    check("o flash de acerto decai", near(w.enemies[0].flash, 0.05, 0.0001))
+    combat.update_enemies(ref w, 1.0)
+    check("o flash nao fica negativo", w.enemies[0].flash >= 0.0)
+
+    let s: wld.World = wld.new_world()
+    append(ref s.enemies, combat.make_enemy(0, vec.V(300.0, 300.0)))
+    append(ref s.enemies, combat.make_enemy(0, vec.V(302.0, 300.0)))
+    combat.update_enemies(ref s, 0.016)
+    check("inimigos sobrepostos se separam", vec.dist(s.enemies[0].pos, s.enemies[1].pos) > 2.0)
+
+    let k: wld.World = wld.new_world()
+    append(ref k.enemies, combat.make_enemy(0, vec.V(k.player.pos.x, k.player.pos.y)))
+    combat.resolve_contact(ref k)
+    check("contato tira vida", k.player.hp == 90.0)
+    check("contato liga a invencibilidade", k.player.invuln > 0.0)
+    check("contato sacode a tela", k.shake > 0.0)
+
+    let hp1 = k.player.hp
+    combat.resolve_contact(ref k)
+    check("invencibilidade impede dano em sequencia", k.player.hp == hp1)
+
+    let m: wld.World = wld.new_world()
+    m.player.hp = 5.0
+    append(ref m.enemies, combat.make_enemy(0, vec.V(m.player.pos.x, m.player.pos.y)))
+    combat.resolve_contact(ref m)
+    check("vida nao fica negativa", m.player.hp == 0.0)
+    check("morrer leva a tela de game over", m.screen == 2)
+end
+
+func test_hits() -> void
+    print("combat: acertos e mortes")
+    let w: wld.World = wld.new_world()
+    append(ref w.enemies, combat.make_enemy(0, vec.V(500.0, 500.0)))
+    append(ref w.bullets, wld.Bullet(vec.V(500.0, 500.0), vec.V(600.0, 0.0), 1.0, 10.0, 0))
+    combat.resolve_hits(ref w)
+    check("a bala tira o dano da vida do inimigo", w.enemies[0].hp == 10.0)
+    check("o inimigo atingido pisca", w.enemies[0].flash > 0.0)
+    check("a bala sem perfuracao morre no acerto", w.bullets[0].life <= 0.0)
+
+    let f: wld.World = wld.new_world()
+    append(ref f.enemies, combat.make_enemy(0, vec.V(500.0, 500.0)))
+    append(ref f.bullets, wld.Bullet(vec.V(900.0, 500.0), vec.V(600.0, 0.0), 1.0, 10.0, 0))
+    combat.resolve_hits(ref f)
+    check("bala longe nao acerta", f.enemies[0].hp == 20.0 && f.bullets[0].life > 0.0)
+
+    let p: wld.World = wld.new_world()
+    p.player.pierce = 1
+    append(ref p.enemies, combat.make_enemy(0, vec.V(500.0, 500.0)))
+    append(ref p.enemies, combat.make_enemy(0, vec.V(500.0, 506.0)))
+    append(ref p.bullets, wld.Bullet(vec.V(500.0, 503.0), vec.V(600.0, 0.0), 1.0, 10.0, 0))
+    combat.resolve_hits(ref p)
+    check("com perfuracao a bala acerta os dois", p.enemies[0].hp == 10.0 && p.enemies[1].hp == 10.0)
+    check("mas morre no segundo", p.bullets[0].life <= 0.0)
+
+    let k: wld.World = wld.new_world()
+    append(ref k.enemies, combat.make_enemy(0, vec.V(500.0, 500.0)))
+    append(ref k.enemies, combat.make_enemy(1, vec.V(700.0, 500.0)))
+    append(ref k.bullets, wld.Bullet(vec.V(0.0, 0.0), vec.V(0.0, 0.0), 0.0, 10.0, 0))
+    append(ref k.bullets, wld.Bullet(vec.V(0.0, 0.0), vec.V(0.0, 0.0), 1.0, 10.0, 0))
+    k.enemies[0].hp = 0.0
+    combat.reap(ref k)
+    check("inimigo morto sai do array", length(k.enemies) == 1)
+    check("o sobrevivente e o certo", k.enemies[0].kind == 1)
+    check("a morte conta como abate", k.kills == 1)
+    check("a morte gera estilhacos", length(k.particles) == 8)
+    check("os estilhacos herdam a cor do tipo", k.particles[0].color == 0)
+    check("bala sem vida sai do array", length(k.bullets) == 1)
+    check("a bala viva fica", k.bullets[0].life == 1.0)
+
+    let q: wld.World = wld.new_world()
+    append(ref q.particles, wld.Particle(vec.V(100.0, 100.0), vec.V(100.0, 0.0), 0.5, 0.5, 0))
+    combat.update_particles(ref q, 0.1)
+    check("a particula anda", q.particles[0].pos.x > 100.0)
+    check("a particula desacelera", vec.len(q.particles[0].vel) < 100.0)
+    check("a particula envelhece", near(q.particles[0].life, 0.4, 0.0001))
+    combat.update_particles(ref q, 1.0)
+    check("a particula morta some", length(q.particles) == 0)
+
+    let s: wld.World = wld.new_world()
+    s.player.aim = vec.V(1.0, 0.0)
+    append(ref s.enemies, combat.make_enemy(0, vec.V(s.player.pos.x + 300.0, s.player.pos.y)))
+    combat.step(ref s, vec.V(0.0, 0.0), vec.V(1.0, 0.0), true, 0.016)
+    check("step atirando cria bala", length(s.bullets) == 1)
+    check("step move o inimigo", s.enemies[0].pos.x < s.player.pos.x + 300.0)
+    check("step conta o tempo", s.time > 0.0)
+
+    let ns: wld.World = wld.new_world()
+    combat.step(ref ns, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, 0.016)
+    check("step sem atirar nao cria bala", length(ns.bullets) == 0)
+end
+
+func test_waves() -> void
+    print("waves")
+    check("oito ondas", waves.TOTAL == 8)
+    check("onda 1 tem 7 inimigos", waves.wave_size(1) == 7)
+    check("onda 8 tem 28 inimigos", waves.wave_size(8) == 28)
+
+    let w: wld.World = wld.new_world()
+    waves.start_wave(ref w, 3)
+    check("start_wave anota a onda", w.wave == 3)
+    check("start_wave enfileira o tamanho certo", w.to_spawn == waves.wave_size(3))
+    check("start_wave libera o primeiro spawn na hora", w.spawn_cd <= 0.0)
+
+    let so_chaser = true
+    for i in range(200) do
+        if waves.pick_kind(1) != 0 then
+            so_chaser = false
+        end
+    end
+    check("onda 1 so tem chasers", so_chaser)
+
+    let sem_tank = true
+    for i in range(400) do
+        if waves.pick_kind(3) == 2 then
+            sem_tank = false
+        end
+    end
+    check("tanks so aparecem da onda 4 em diante", sem_tank)
+
+    let viu_rusher = false
+    for i in range(400) do
+        if waves.pick_kind(3) == 1 then
+            viu_rusher = true
+        end
+    end
+    check("rushers aparecem na onda 3", viu_rusher)
+
+    let viu_tank = false
+    for i in range(400) do
+        if waves.pick_kind(6) == 2 then
+            viu_tank = true
+        end
+    end
+    check("tanks aparecem na onda 6", viu_tank)
+
+    let fora = 0
+    for i in range(300) do
+        let pp: vec.V = waves.edge_point()
+        if pp.x < 0.0 || pp.x > wld.ARENA_W || pp.y < 0.0 || pp.y > wld.ARENA_H then
+            fora = fora + 1
+        end
+    end
+    check("spawn cai dentro da arena", fora == 0)
+
+    let sp: wld.World = wld.new_world()
+    waves.start_wave(ref sp, 1)
+    waves.update(ref sp, 0.016)
+    check("o primeiro inimigo entra logo", length(sp.enemies) == 1)
+    check("e sai da fila", sp.to_spawn == waves.wave_size(1) - 1)
+    waves.update(ref sp, 0.016)
+    check("o segundo espera o intervalo", length(sp.enemies) == 1)
+    waves.update(ref sp, 1.0)
+    check("passado o intervalo, entra o segundo", length(sp.enemies) == 2)
+
+    let d: wld.World = wld.new_world()
+    waves.start_wave(ref d, 1)
+    check("onda recem-comecada nao terminou", !waves.done(ref d))
+    d.to_spawn = 0
+    append(ref d.enemies, combat.make_enemy(0, vec.V(100.0, 100.0)))
+    check("com inimigo vivo a onda nao terminou", !waves.done(ref d))
+    let vazio: wld.Enemy[] = []
+    d.enemies = vazio
+    check("fila vazia e campo limpo terminam a onda", waves.done(ref d))
+
+    let f: wld.World = wld.new_world()
+    waves.start_wave(ref f, 2)
+    for i in range(200) do
+        waves.update(ref f, 0.5)
+    end
+    check("a onda inteira e liberada", f.to_spawn == 0)
+    check("e todos entraram em campo", length(f.enemies) == waves.wave_size(2))
+end
+
+func test_upgrades() -> void
+    print("upgrades")
+    check("seis upgrades", up.COUNT == 6)
+
+    let sem_nome = 0
+    for i in range(up.COUNT) do
+        if length(up.name(i)) == 0 || length(up.describe(i)) == 0 then
+            sem_nome = sem_nome + 1
+        end
+    end
+    check("todo upgrade tem nome e descricao", sem_nome == 0)
+
+    let ruim = 0
+    for k in range(200) do
+        let o: int[] = up.offer()
+        if length(o) != 3 then
+            ruim = ruim + 1
+        elif o[0] == o[1] || o[1] == o[2] || o[0] == o[2] then
+            ruim = ruim + 1
+        elif o[0] < 0 || o[0] >= up.COUNT || o[1] < 0 || o[1] >= up.COUNT || o[2] < 0 || o[2] >= up.COUNT then
+            ruim = ruim + 1
+        end
+    end
+    check("offer da tres indices distintos e validos", ruim == 0)
+
+    let a: wld.World = wld.new_world()
+    up.apply(ref a, 0)
+    check("cadencia sobe 35%", near(a.player.fire_rate, 6.75, 0.0001))
+    check("cadencia nao mexe no dano", a.player.damage == 10.0)
+
+    let b: wld.World = wld.new_world()
+    up.apply(ref b, 1)
+    check("dano sobe 6", b.player.damage == 16.0)
+
+    let c: wld.World = wld.new_world()
+    up.apply(ref c, 2)
+    check("botas sobem 15%", near(c.player.speed, 253.0, 0.0001))
+
+    let d: wld.World = wld.new_world()
+    d.player.hp = 40.0
+    up.apply(ref d, 3)
+    check("blindagem sobe o maximo", d.player.hp_max == 130.0)
+    check("blindagem cura 30", d.player.hp == 70.0)
+
+    let e: wld.World = wld.new_world()
+    up.apply(ref e, 3)
+    check("blindagem nao cura acima do maximo", e.player.hp == e.player.hp_max && e.player.hp == 130.0)
+
+    let f: wld.World = wld.new_world()
+    up.apply(ref f, 4)
+    check("leque liga o tiro triplo", f.player.shots == 3)
+    check("leque nao mexe no dano na primeira vez", f.player.damage == 10.0)
+    up.apply(ref f, 4)
+    check("leque repetido vira dano", f.player.damage == 16.0)
+    check("leque repetido nao passa de tres tiros", f.player.shots == 3)
+
+    let g: wld.World = wld.new_world()
+    up.apply(ref g, 5)
+    check("perfuracao sobe 1", g.player.pierce == 1)
+    up.apply(ref g, 5)
+    check("perfuracao empilha", g.player.pierce == 2)
+
+    let h: wld.World = wld.new_world()
+    up.apply(ref h, 1)
+    check("dano nao mexe na velocidade nem na cadencia", h.player.speed == 220.0 && h.player.fire_rate == 5.0)
+    check("dano nao mexe na vida", h.player.hp == 100.0 && h.player.hp_max == 100.0)
+end
+
+func test_flow() -> void
+    print("flow")
+    let w: wld.World = wld.new_world()
+    flow.begin(ref w)
+    check("begin comeca na onda 1 jogando", w.wave == 1 && w.screen == 0)
+    check("begin enfileira a onda", w.to_spawn == waves.wave_size(1))
+
+    // limpar uma onda que nao e a ultima leva a tela de upgrade
+    w.to_spawn = 0
+    let vazio: wld.Enemy[] = []
+    w.enemies = vazio
+    flow.advance(ref w, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, -1, false, 0.016)
+    check("onda limpa leva a tela de upgrade", w.screen == 1)
+    check("a tela de upgrade oferta tres cartas", length(w.offers) == 3)
+
+    // escolha invalida nao faz nada
+    let antes_wave = w.wave
+    flow.advance(ref w, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, 7, false, 0.016)
+    check("escolha fora do intervalo e ignorada", w.screen == 1 && w.wave == antes_wave)
+    flow.advance(ref w, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, -1, false, 0.016)
+    check("sem escolha a tela de upgrade espera", w.screen == 1)
+
+    // escolher avanca a onda
+    flow.advance(ref w, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, 0, false, 0.016)
+    check("escolher volta a jogar", w.screen == 0)
+    check("escolher comeca a onda seguinte", w.wave == antes_wave + 1)
+    check("a onda seguinte vem cheia", w.to_spawn == waves.wave_size(w.wave))
+
+    // limpar a ultima onda e vitoria
+    let v: wld.World = wld.new_world()
+    flow.begin(ref v)
+    v.wave = waves.TOTAL
+    v.to_spawn = 0
+    let vazio2: wld.Enemy[] = []
+    v.enemies = vazio2
+    flow.advance(ref v, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, -1, false, 0.016)
+    check("limpar a ultima onda e vitoria", v.screen == 3)
+    check("a vitoria nao oferta upgrade", length(v.offers) == 0)
+
+    // reinicio
+    let g: wld.World = wld.new_world()
+    flow.begin(ref g)
+    g.player.hp = 3.0
+    g.player.damage = 99.0
+    g.player.shots = 3
+    g.kills = 42
+    g.time = 120.0
+    g.wave = 5
+    g.screen = 2
+    flow.advance(ref g, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, -1, false, 0.016)
+    check("sem pedir, o game over nao reinicia", g.screen == 2 && g.kills == 42)
+    flow.advance(ref g, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, -1, true, 0.016)
+    check("reiniciar volta a jogar", g.screen == 0)
+    check("reiniciar volta para a onda 1", g.wave == 1)
+    check("reiniciar restaura a vida", g.player.hp == 100.0)
+    check("reiniciar apaga os upgrades", g.player.damage == 10.0 && g.player.shots == 1)
+    check("reiniciar zera o placar", g.kills == 0 && g.time == 0.0)
+
+    // reiniciar nao age enquanto se joga
+    let j: wld.World = wld.new_world()
+    flow.begin(ref j)
+    j.kills = 7
+    flow.advance(ref j, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, -1, true, 0.016)
+    check("reiniciar e ignorado durante o jogo", j.kills == 7 && j.screen == 0)
+end
+
+test_vec()
+test_rng()
+test_world()
+test_move()
+test_fire()
+test_enemies()
+test_hits()
+test_waves()
+test_upgrades()
+test_flow()
+report()

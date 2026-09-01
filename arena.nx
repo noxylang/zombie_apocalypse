@@ -1,0 +1,64 @@
+// arena.nx — janela, loop e input. Nenhuma regra de jogo mora aqui: tudo o
+// que este arquivo faz e traduzir teclado e mouse em vetores e numeros, e
+// entregar para flow.advance.
+use github_com.estevaofon.noxy_game_engine as game
+use src.vec as vec
+use src.world as wld
+use src.flow as flow
+use src.render as render
+
+game.init(960, 640, "Noxy Arena")
+game.set_fps(60)
+
+let world: wld.World = wld.new_world()
+flow.begin(ref world)
+
+while game.running() do
+    if game.key_pressed("escape") then
+        game.stop()
+    end
+
+    // um quadro travado nao pode virar um salto: sem o teto, voltar de uma
+    // pausa teleportaria todo mundo pela arena.
+    let dt: float = game.delta()
+    if dt > 0.05 then
+        dt = 0.05
+    end
+
+    let mvx = 0.0
+    let mvy = 0.0
+    if game.key_down("a") then
+        mvx = mvx - 1.0
+    end
+    if game.key_down("d") then
+        mvx = mvx + 1.0
+    end
+    if game.key_down("w") then
+        mvy = mvy - 1.0
+    end
+    if game.key_down("s") then
+        mvy = mvy + 1.0
+    end
+
+    // a mira usa a camera sem tremida: com ela, o tiro tremeria junto.
+    let cam: vec.V = render.camera_base(world)
+    let m: game.Point = game.mouse_pos()
+    let aim: vec.V = vec.V(to_float(m.x) + cam.x - world.player.pos.x, to_float(m.y) + cam.y - world.player.pos.y)
+
+    let pick = -1
+    if game.key_pressed("1") then
+        pick = 0
+    end
+    if game.key_pressed("2") then
+        pick = 1
+    end
+    if game.key_pressed("3") then
+        pick = 2
+    end
+
+    flow.advance(ref world, vec.V(mvx, mvy), aim, game.mouse_down("left"), pick, game.key_pressed("r"), dt)
+
+    render.frame(world)
+    game.flip()
+end
+game.quit()

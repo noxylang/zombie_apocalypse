@@ -1,0 +1,59 @@
+// src/flow.nx — a maquina de telas: o que acontece quando uma onda acaba,
+// quando se escolhe um upgrade e quando se pede para recomecar. Mora num
+// modulo, e nao em arena.nx, para poder ser testada sem abrir janela.
+use src.vec as vec
+use src.world as wld
+use src.combat as combat
+use src.waves as waves
+use src.upgrades as up
+
+func begin(w: ref wld.World) -> void
+    w.screen = 0
+    waves.start_wave(w, 1)
+end
+
+// reset reescreve o mundo campo a campo: Noxy nao deixa trocar o alvo de um
+// ref inteiro, e a partida nova precisa apagar tambem os upgrades.
+func reset(w: ref wld.World) -> void
+    let fresh: wld.World = wld.new_world()
+    w.player = fresh.player
+    w.enemies = fresh.enemies
+    w.bullets = fresh.bullets
+    w.particles = fresh.particles
+    w.kills = 0
+    w.offers = fresh.offers
+    w.shake = 0.0
+    w.time = 0.0
+    begin(w)
+end
+
+// advance roda um quadro. pick e -1 quando nada foi escolhido e 0..2 para a
+// carta da tela de upgrade; restart e o pedido de recomecar depois do fim.
+func advance(w: ref wld.World, mv: vec.V, aim: vec.V, shooting: bool, pick: int, restart: bool, dt: float) -> void
+    if w.screen == 0 then
+        combat.step(w, mv, aim, shooting, dt)
+        waves.update(w, dt)
+        if waves.done(w) then
+            if w.wave >= waves.TOTAL then
+                w.screen = 3
+            else
+                w.offers = up.offer()
+                w.screen = 1
+            end
+        end
+        return
+    end
+
+    if w.screen == 1 then
+        if pick >= 0 && pick < length(w.offers) then
+            up.apply(w, w.offers[pick])
+            waves.start_wave(w, w.wave + 1)
+            w.screen = 0
+        end
+        return
+    end
+
+    if restart then
+        reset(w)
+    end
+end

@@ -1,0 +1,224 @@
+// src/render.nx — o unico modulo que desenha. Nenhuma forma usa angulo: cada
+// uma e montada a partir da direcao do movimento e da sua perpendicular.
+use github_com.estevaofon.noxy_game_engine as game
+use src.vec as vec
+use src.world as wld
+use src.rng as rng
+use src.upgrades as up
+use src.waves as waves
+
+let BG: game.Color = game.rgb(10, 12, 20)
+let GRID: game.Color = game.rgb(24, 30, 52)
+let WALL: game.Color = game.rgb(70, 84, 130)
+let PLAYER_C: game.Color = game.rgb(90, 220, 255)
+let PLAYER_HURT: game.Color = game.rgb(255, 255, 255)
+let BULLET_C: game.Color = game.rgb(255, 244, 180)
+let GRID_STEP = 80.0
+
+func kind_color(k: int) -> game.Color
+    if k == 1 then
+        return game.rgb(255, 160, 40)
+    end
+    if k == 2 then
+        return game.rgb(180, 100, 255)
+    end
+    return game.rgb(255, 70, 90)
+end
+
+// camera_base e a camera de verdade: centrada no jogador e travada na arena.
+// arena.nx usa esta para converter o mouse em coordenadas de mundo.
+func camera_base(w: wld.World) -> vec.V
+    let cx: float = w.player.pos.x - wld.VIEW_W / 2.0
+    let cy: float = w.player.pos.y - wld.VIEW_H / 2.0
+    if cx < 0.0 then
+        cx = 0.0
+    end
+    if cy < 0.0 then
+        cy = 0.0
+    end
+    if cx > wld.ARENA_W - wld.VIEW_W then
+        cx = wld.ARENA_W - wld.VIEW_W
+    end
+    if cy > wld.ARENA_H - wld.VIEW_H then
+        cy = wld.ARENA_H - wld.VIEW_H
+    end
+    return vec.V(cx, cy)
+end
+
+// camera_shaken e so para desenhar. Se a mira usasse esta, o tiro tremeria
+// junto com a tela.
+func camera_shaken(w: wld.World) -> vec.V
+    let c: vec.V = camera_base(w)
+    if w.shake <= 0.0 then
+        return c
+    end
+    return vec.V(c.x + rng.rand_float(-w.shake, w.shake), c.y + rng.rand_float(-w.shake, w.shake))
+end
+
+func draw_grid(cam: vec.V) -> void
+    let x: float = to_float(to_int(cam.x / GRID_STEP)) * GRID_STEP
+    while x < cam.x + wld.VIEW_W + GRID_STEP do
+        game.draw_line(x, cam.y, x, cam.y + wld.VIEW_H, GRID, 1.0)
+        x = x + GRID_STEP
+    end
+    let y: float = to_float(to_int(cam.y / GRID_STEP)) * GRID_STEP
+    while y < cam.y + wld.VIEW_H + GRID_STEP do
+        game.draw_line(cam.x, y, cam.x + wld.VIEW_W, y, GRID, 1.0)
+        y = y + GRID_STEP
+    end
+end
+
+func draw_player(w: wld.World) -> void
+    let d: vec.V = w.player.aim
+    let p: vec.V = vec.perp(d)
+    let c: vec.V = w.player.pos
+    let pts: float[] = [
+        c.x + d.x * 18.0, c.y + d.y * 18.0,
+        c.x - d.x * 8.0 + p.x * 11.0, c.y - d.y * 8.0 + p.y * 11.0,
+        c.x - d.x * 8.0 - p.x * 11.0, c.y - d.y * 8.0 - p.y * 11.0
+    ]
+    let col: game.Color = PLAYER_C
+    if w.player.invuln > 0.0 then
+        col = PLAYER_HURT
+    end
+    game.draw_polygon(pts, col)
+end
+
+func draw_enemy(e: wld.Enemy) -> void
+    let d: vec.V = vec.norm(e.vel)
+    if d.x == 0.0 && d.y == 0.0 then
+        d = vec.V(1.0, 0.0)
+    end
+    let p: vec.V = vec.perp(d)
+    let c: vec.V = e.pos
+    let r: float = e.radius
+    let col: game.Color = kind_color(e.kind)
+    if e.flash > 0.0 then
+        col = game.WHITE
+    end
+
+    if e.kind == 1 then
+        let tri: float[] = [
+            c.x + d.x * r, c.y + d.y * r,
+            c.x - d.x * r * 0.6 + p.x * r * 0.75, c.y - d.y * r * 0.6 + p.y * r * 0.75,
+            c.x - d.x * r * 0.6 - p.x * r * 0.75, c.y - d.y * r * 0.6 - p.y * r * 0.75
+        ]
+        game.draw_polygon(tri, col)
+        return
+    end
+
+    if e.kind == 2 then
+        let sq: float[] = [
+            c.x + d.x * r + p.x * r, c.y + d.y * r + p.y * r,
+            c.x + d.x * r - p.x * r, c.y + d.y * r - p.y * r,
+            c.x - d.x * r - p.x * r, c.y - d.y * r - p.y * r,
+            c.x - d.x * r + p.x * r, c.y - d.y * r + p.y * r
+        ]
+        game.draw_polygon(sq, col)
+        return
+    end
+
+    let dia: float[] = [
+        c.x + d.x * r, c.y + d.y * r,
+        c.x + p.x * r * 0.65, c.y + p.y * r * 0.65,
+        c.x - d.x * r, c.y - d.y * r,
+        c.x - p.x * r * 0.65, c.y - p.y * r * 0.65
+    ]
+    game.draw_polygon(dia, col)
+end
+
+func world(w: wld.World) -> void
+    game.clear(BG)
+    let cam: vec.V = camera_shaken(w)
+    game.camera_set(cam.x, cam.y)
+
+    draw_grid(cam)
+    game.draw_rect_outline(0.0, 0.0, wld.ARENA_W, wld.ARENA_H, WALL, 4.0)
+
+    for i in range(length(w.particles)) do
+        let pt: wld.Particle = w.particles[i]
+        let a: float = pt.life / pt.life_max
+        let base: game.Color = kind_color(pt.color)
+        game.draw_circle(pt.pos.x, pt.pos.y, 3.0 * a + 1.0, game.rgba(base.r, base.g, base.b, to_int(220.0 * a)))
+    end
+
+    for i in range(length(w.bullets)) do
+        let b: wld.Bullet = w.bullets[i]
+        game.draw_line(b.pos.x, b.pos.y, b.pos.x - b.vel.x * 0.02, b.pos.y - b.vel.y * 0.02, BULLET_C, 3.0)
+    end
+
+    for i in range(length(w.enemies)) do
+        draw_enemy(w.enemies[i])
+    end
+
+    draw_player(w)
+    game.camera_reset()
+end
+
+let DIM: game.Color = game.rgba(0, 0, 0, 190)
+let INK: game.Color = game.rgb(230, 236, 255)
+let FADE: game.Color = game.rgb(150, 160, 190)
+let GOOD: game.Color = game.rgb(120, 240, 180)
+let BAD: game.Color = game.rgb(255, 90, 110)
+
+func centered(s: string, y: float, size: int, c: game.Color) -> void
+    let wpx: float = game.text_width(s, size)
+    game.draw_text(s, (wld.VIEW_W - wpx) / 2.0, y, size, c)
+end
+
+func draw_hud(w: wld.World) -> void
+    let frac: float = w.player.hp / w.player.hp_max
+    if frac < 0.0 then
+        frac = 0.0
+    end
+    game.draw_rect(16.0, 16.0, 240.0, 18.0, game.rgba(0, 0, 0, 150))
+    game.draw_rect(16.0, 16.0, 240.0 * frac, 18.0, game.rgb(90, 230, 130))
+    game.draw_rect_outline(16.0, 16.0, 240.0, 18.0, WALL, 2.0)
+    game.draw_text(f"{to_int(w.player.hp)} / {to_int(w.player.hp_max)}", 22.0, 17.0, 14, game.BLACK)
+
+    game.draw_text(f"Onda {w.wave} / {waves.TOTAL}", 16.0, 44.0, 18, INK)
+    game.draw_text(f"Abates {w.kills}", 16.0, 68.0, 16, FADE)
+    game.draw_text(f"Tempo {to_int(w.time)}s", 16.0, 88.0, 16, FADE)
+
+    let restam: int = w.to_spawn + length(w.enemies)
+    game.draw_text(f"Restam {restam}", wld.VIEW_W - 120.0, 16.0, 16, FADE)
+end
+
+func draw_upgrade(w: wld.World) -> void
+    game.draw_rect(0.0, 0.0, wld.VIEW_W, wld.VIEW_H, DIM)
+    centered(f"Onda {w.wave} limpa", 120.0, 34, GOOD)
+    centered("Escolha um upgrade", 166.0, 20, INK)
+    for i in range(length(w.offers)) do
+        let idx: int = w.offers[i]
+        let y: float = 230.0 + to_float(i) * 84.0
+        game.draw_rect(160.0, y, 640.0, 68.0, game.rgba(255, 255, 255, 18))
+        game.draw_rect_outline(160.0, y, 640.0, 68.0, WALL, 2.0)
+        game.draw_text(f"{i + 1}", 180.0, y + 18.0, 30, GOOD)
+        game.draw_text(up.name(idx), 224.0, y + 12.0, 22, INK)
+        game.draw_text(up.describe(idx), 224.0, y + 40.0, 16, FADE)
+    end
+    centered("1, 2 ou 3 para escolher", wld.VIEW_H - 56.0, 16, FADE)
+end
+
+func draw_end(w: wld.World) -> void
+    game.draw_rect(0.0, 0.0, wld.VIEW_W, wld.VIEW_H, DIM)
+    if w.screen == 3 then
+        centered("Vitoria", 190.0, 48, GOOD)
+        centered("As oito ondas cairam", 252.0, 20, INK)
+    else
+        centered("Voce morreu", 190.0, 48, BAD)
+        centered(f"na onda {w.wave} de {waves.TOTAL}", 252.0, 20, INK)
+    end
+    centered(f"{w.kills} abates em {to_int(w.time)} segundos", 300.0, 20, FADE)
+    centered("R para jogar de novo    Escape para sair", 380.0, 18, FADE)
+end
+
+func frame(w: wld.World) -> void
+    world(w)
+    draw_hud(w)
+    if w.screen == 1 then
+        draw_upgrade(w)
+    elif w.screen >= 2 then
+        draw_end(w)
+    end
+end

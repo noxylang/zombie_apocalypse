@@ -1,0 +1,86 @@
+// src/upgrades.nx — catalogo de seis, sorteio de tres sem repetir, aplicacao.
+// O unico com teto e o leque: pego duas vezes, vira dano, para que nenhuma
+// escolha seja desperdicada.
+use src.world as wld
+use src.rng as rng
+
+let COUNT = 6
+
+func name(i: int) -> string
+    if i == 0 then
+        return "Cadencia"
+    end
+    if i == 1 then
+        return "Dano"
+    end
+    if i == 2 then
+        return "Botas"
+    end
+    if i == 3 then
+        return "Blindagem"
+    end
+    if i == 4 then
+        return "Leque triplo"
+    end
+    return "Perfuracao"
+end
+
+func describe(i: int) -> string
+    if i == 0 then
+        return "+35% de tiros por segundo"
+    end
+    if i == 1 then
+        return "+6 de dano por bala"
+    end
+    if i == 2 then
+        return "+15% de velocidade"
+    end
+    if i == 3 then
+        return "+30 de vida maxima, e cura 30"
+    end
+    if i == 4 then
+        return "atira tres balas em leque"
+    end
+    return "a bala atravessa mais um inimigo"
+end
+
+func offer() -> int[]
+    let out: int[] = []
+    while length(out) < 3 do
+        let c: int = rng.rand_int(0, COUNT - 1)
+        let dup = false
+        for k in range(length(out)) do
+            if out[k] == c then
+                dup = true
+            end
+        end
+        if !dup then
+            append(ref out, c)
+        end
+    end
+    return out
+end
+
+func apply(w: ref wld.World, i: int) -> void
+    if i == 0 then
+        w.player.fire_rate = w.player.fire_rate * 1.35
+    elif i == 1 then
+        w.player.damage = w.player.damage + 6.0
+    elif i == 2 then
+        w.player.speed = w.player.speed * 1.15
+    elif i == 3 then
+        w.player.hp_max = w.player.hp_max + 30.0
+        w.player.hp = w.player.hp + 30.0
+        if w.player.hp > w.player.hp_max then
+            w.player.hp = w.player.hp_max
+        end
+    elif i == 4 then
+        if w.player.shots >= 3 then
+            w.player.damage = w.player.damage + 6.0
+        else
+            w.player.shots = 3
+        end
+    else
+        w.player.pierce = w.player.pierce + 1
+    end
+end

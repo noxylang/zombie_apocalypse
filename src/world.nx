@@ -1,0 +1,79 @@
+// src/world.nx — os dados e nada mais. Nenhuma funcao daqui simula ou desenha,
+// e o modulo nao conhece a engine: Particle.color e um indice de paleta que so
+// o render resolve.
+use src.vec as vec
+
+let ARENA_W = 1600.0
+let ARENA_H = 1200.0
+let VIEW_W = 960.0
+let VIEW_H = 640.0
+let PLAYER_R = 12.0
+
+struct Player
+    pos: vec.V,
+    hp: float,
+    hp_max: float,
+    speed: float,
+    fire_rate: float,      // tiros por segundo
+    fire_cd: float,        // segundos ate poder atirar de novo
+    damage: float,
+    bullet_speed: float,
+    pierce: int,           // inimigos atravessados alem do primeiro
+    shots: int,            // 1 = simples, 3 = leque
+    invuln: float,         // segundos restantes de invencibilidade
+    aim: vec.V             // unitario; guardado para o desenho
+end
+
+struct Enemy
+    pos: vec.V,
+    vel: vec.V,            // perseguicao, aplicada depois da separacao
+    kind: int,             // 0 chaser, 1 rusher, 2 tank
+    hp: float,
+    radius: float,
+    speed: float,
+    touch: float,          // dano de contato
+    flash: float           // segundos restantes de flash branco
+end
+
+struct Bullet
+    pos: vec.V,
+    vel: vec.V,
+    life: float,
+    damage: float,
+    hits: int              // inimigos ja atravessados
+end
+
+struct Particle
+    pos: vec.V,
+    vel: vec.V,
+    life: float,
+    life_max: float,
+    color: int             // indice de paleta, resolvido no render
+end
+
+struct World
+    player: Player,
+    enemies: Enemy[],
+    bullets: Bullet[],
+    particles: Particle[],
+    wave: int,
+    to_spawn: int,         // inimigos da onda ainda nao postos em campo
+    spawn_cd: float,
+    kills: int,
+    screen: int,           // 0 jogando, 1 upgrade, 2 game over, 3 vitoria
+    offers: int[],         // indices dos tres upgrades ofertados
+    shake: float,          // intensidade restante da tremida
+    time: float            // segundos de partida
+end
+
+func new_player() -> Player
+    return Player(vec.V(ARENA_W / 2.0, ARENA_H / 2.0), 100.0, 100.0, 220.0, 5.0, 0.0, 10.0, 600.0, 0, 1, 0.0, vec.V(1.0, 0.0))
+end
+
+func new_world() -> World
+    let es: Enemy[] = []
+    let bs: Bullet[] = []
+    let ps: Particle[] = []
+    let of: int[] = []
+    return World(new_player(), es, bs, ps, 0, 0, 0.0, 0, 0, of, 0.0, 0.0)
+end

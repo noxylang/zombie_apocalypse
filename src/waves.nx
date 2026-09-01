@@ -1,0 +1,75 @@
+// src/waves.nx — quantos inimigos, de que tipo e por onde entram. Os numeros
+// de cada tipo moram em combat.make_enemy; aqui so se escolhe kind e posicao.
+use src.vec as vec
+use src.world as wld
+use src.rng as rng
+use src.combat as combat
+
+let TOTAL = 8
+let SPAWN_GAP = 0.35
+let MARGIN = 40.0
+
+func wave_size(n: int) -> int
+    return 4 + 3 * n
+end
+
+func start_wave(w: ref wld.World, n: int) -> void
+    w.wave = n
+    w.to_spawn = wave_size(n)
+    w.spawn_cd = 0.0
+end
+
+// pick_kind abre o leque conforme a onda: chasers sozinhos na 1, rushers da 2
+// em diante, tanks da 4, com a fatia de chaser encolhendo.
+func pick_kind(n: int) -> int
+    if n <= 1 then
+        return 0
+    end
+    let r: int = rng.rand_int(0, 99)
+    if n <= 3 then
+        if r < 60 then
+            return 0
+        end
+        return 1
+    end
+    if r < 45 then
+        return 0
+    end
+    if r < 75 then
+        return 1
+    end
+    return 2
+end
+
+// edge_point sorteia um dos quatro lados e um ponto nele, recuado pela margem
+// para o inimigo nascer dentro da arena.
+func edge_point() -> vec.V
+    let side: int = rng.rand_int(0, 3)
+    if side == 0 then
+        return vec.V(rng.rand_float(MARGIN, wld.ARENA_W - MARGIN), MARGIN)
+    end
+    if side == 1 then
+        return vec.V(wld.ARENA_W - MARGIN, rng.rand_float(MARGIN, wld.ARENA_H - MARGIN))
+    end
+    if side == 2 then
+        return vec.V(rng.rand_float(MARGIN, wld.ARENA_W - MARGIN), wld.ARENA_H - MARGIN)
+    end
+    return vec.V(MARGIN, rng.rand_float(MARGIN, wld.ARENA_H - MARGIN))
+end
+
+func update(w: ref wld.World, dt: float) -> void
+    if w.to_spawn <= 0 then
+        return
+    end
+    w.spawn_cd = w.spawn_cd - dt
+    if w.spawn_cd > 0.0 then
+        return
+    end
+    w.spawn_cd = SPAWN_GAP
+    append(ref w.enemies, combat.make_enemy(pick_kind(w.wave), edge_point()))
+    w.to_spawn = w.to_spawn - 1
+end
+
+func done(w: ref wld.World) -> bool
+    return w.to_spawn <= 0 && length(w.enemies) == 0
+end

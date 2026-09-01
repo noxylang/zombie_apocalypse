@@ -1,0 +1,46 @@
+// tests/smoke.nx — abre a janela e percorre o caminho de desenho de verdade:
+// jogo com os tres tipos de inimigo em cena, e depois cada um dos tres
+// paineis. Pega erro de quadro que os testes sem janela nao alcancam.
+use github_com.estevaofon.noxy_game_engine as game
+use src.vec as vec
+use src.world as wld
+use src.combat as combat
+use src.waves as waves
+use src.upgrades as up
+use src.flow as flow
+use src.render as render
+
+game.init(960, 640, "smoke")
+game.set_fps(60)
+
+let w: wld.World = wld.new_world()
+flow.begin(ref w)
+w.wave = 6
+w.player.shots = 3
+w.shake = 14.0
+append(ref w.enemies, combat.make_enemy(0, vec.V(w.player.pos.x + 120.0, w.player.pos.y)))
+append(ref w.enemies, combat.make_enemy(1, vec.V(w.player.pos.x - 120.0, w.player.pos.y + 40.0)))
+append(ref w.enemies, combat.make_enemy(2, vec.V(w.player.pos.x, w.player.pos.y - 130.0)))
+
+let telas: int[] = [0, 1, 2, 3]
+let nomes: string[] = ["jogo", "upgrade", "game over", "vitoria"]
+let quadros = 0
+
+for t in range(length(telas)) do
+    w.screen = telas[t]
+    if w.screen == 1 then
+        w.offers = up.offer()
+    end
+    for f in range(20) do
+        if w.screen == 0 then
+            flow.advance(ref w, vec.V(1.0, 0.5), vec.V(1.0, -0.3), true, -1, false, 0.016)
+        end
+        render.frame(w)
+        game.flip()
+        quadros = quadros + 1
+    end
+    print(f"  tela '{nomes[t]}' desenhada")
+end
+
+game.quit()
+print(f"smoke ok: {quadros} quadros nas 4 telas, {length(w.enemies)} inimigos, {w.kills} abates")

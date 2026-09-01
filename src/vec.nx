@@ -1,0 +1,59 @@
+// src/vec.nx — algebra vetorial. Noxy nao tem modulo math, entao sqrt e
+// implementado aqui e nenhuma rotacao usa angulo: direcao e vetor unitario,
+// giro de 90 graus e perp().
+
+struct V
+    x: float,
+    y: float
+end
+
+let EPS = 0.000001
+
+// sqrt por Newton-Raphson. A semente dobra ate passar de v, o que mantem o
+// numero de iteracoes pequeno mesmo para valores grandes.
+func sqrt(v: float) -> float
+    if v <= 0.0 then
+        return 0.0
+    end
+    let g = 1.0
+    while g * g < v do
+        g = g * 2.0
+    end
+    for i in range(8) do
+        g = 0.5 * (g + v / g)
+    end
+    return g
+end
+
+func add(a: V, b: V) -> V
+    return V(a.x + b.x, a.y + b.y)
+end
+
+func sub(a: V, b: V) -> V
+    return V(a.x - b.x, a.y - b.y)
+end
+
+func scale(a: V, k: float) -> V
+    return V(a.x * k, a.y * k)
+end
+
+func len(a: V) -> float
+    return sqrt(a.x * a.x + a.y * a.y)
+end
+
+func norm(a: V) -> V
+    let l: float = len(a)
+    if l < EPS then
+        return V(0.0, 0.0)
+    end
+    return V(a.x / l, a.y / l)
+end
+
+// perp gira 90 graus no sentido horario na tela (y cresce para baixo).
+func perp(a: V) -> V
+    return V(-a.y, a.x)
+end
+
+func dist(a: V, b: V) -> float
+    return len(sub(a, b))
+end

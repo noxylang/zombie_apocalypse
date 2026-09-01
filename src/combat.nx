@@ -1,0 +1,287 @@
+// src/combat.nx — a simulacao de um quadro. Nao conhece a engine: recebe o
+// input ja traduzido em vetores e devolve tudo escrito no World.
+use src.vec as vec
+use src.world as wld
+use src.rng as rng
+
+let SHAKE_DECAY = 30.0
+let COS12 = 0.97814760
+let SIN12 = 0.20791169
+let MUZZLE = 16.0
+let BULLET_LIFE = 1.2
+let INVULN = 0.6
+let KNOCKBACK = 26.0
+let HIT_SHAKE = 12.0
+let BULLET_R = 3.0
+let FLASH = 0.06
+let SHARDS = 8
+let SHARD_LIFE = 0.5
+let SHARD_DRAG = 0.90
+
+func clamp_player(w: ref wld.World) -> void
+    let r: float = wld.PLAYER_R
+    if w.player.pos.x < r then
+        w.player.pos.x = r
+    end
+    if w.player.pos.y < r then
+        w.player.pos.y = r
+    end
+    if w.player.pos.x > wld.ARENA_W - r then
+        w.player.pos.x = wld.ARENA_W - r
+    end
+    if w.player.pos.y > wld.ARENA_H - r then
+        w.player.pos.y = wld.ARENA_H - r
+    end
+end
+
+// move_player normaliza mv (a diagonal nao pode ser mais rapida que a reta),
+// atualiza a mira e faz decair os temporizadores do quadro.
+func move_player(w: ref wld.World, mv: vec.V, aim: vec.V, dt: float) -> void
+    let d: vec.V = vec.norm(mv)
+    w.player.pos.x = w.player.pos.x + d.x * w.player.speed * dt
+    w.player.pos.y = w.player.pos.y + d.y * w.player.speed * dt
+    clamp_player(w)
+
+    let a: vec.V = vec.norm(aim)
+    if a.x != 0.0 || a.y != 0.0 then
+        w.player.aim = a
+    end
+
+    if w.player.fire_cd > 0.0 then
+        w.player.fire_cd = w.player.fire_cd - dt
+        if w.player.fire_cd < 0.0 then
+            w.player.fire_cd = 0.0
+        end
+    end
+    if w.player.invuln > 0.0 then
+        w.player.invuln = w.player.invuln - dt
+        if w.player.invuln < 0.0 then
+            w.player.invuln = 0.0
+        end
+    end
+    if w.shake > 0.0 then
+        w.shake = w.shake - dt * SHAKE_DECAY
+        if w.shake < 0.0 then
+            w.shake = 0.0
+        end
+    end
+    w.time = w.time + dt
+end
+
+// rotate gira v pelo angulo cujo cosseno e seno foram passados. Os valores sao
+// constantes pre-computadas: Noxy nao tem sin/cos.
+func rotate(v: vec.V, c: float, s: float) -> vec.V
+    return vec.V(v.x * c - v.y * s, v.x * s + v.y * c)
+end
+
+func spawn_bullet(w: ref wld.World, d: vec.V) -> void
+    let pos: vec.V = vec.V(w.player.pos.x + d.x * MUZZLE, w.player.pos.y + d.y * MUZZLE)
+    let vel: vec.V = vec.scale(d, w.player.bullet_speed)
+    append(ref w.bullets, wld.Bullet(pos, vel, BULLET_LIFE, w.player.damage, 0))
+end
+
+func fire(w: ref wld.World) -> void
+    if w.player.fire_cd > 0.0 then
+        return
+    end
+    w.player.fire_cd = 1.0 / w.player.fire_rate
+    let d: vec.V = w.player.aim
+    spawn_bullet(w, d)
+    if w.player.shots >= 3 then
+        spawn_bullet(w, rotate(d, COS12, SIN12))
+        spawn_bullet(w, rotate(d, COS12, -SIN12))
+    end
+end
+
+// move_bullets so move e envelhece; a remocao acontece em reap, depois que as
+// colisoes tiveram chance de zerar a vida de quem acertou.
+func move_bullets(w: ref wld.World, dt: float) -> void
+    for i in range(length(w.bullets)) do
+        w.bullets[i].pos.x = w.bullets[i].pos.x + w.bullets[i].vel.x * dt
+        w.bullets[i].pos.y = w.bullets[i].pos.y + w.bullets[i].vel.y * dt
+        w.bullets[i].life = w.bullets[i].life - dt
+        if w.bullets[i].pos.x < 0.0 || w.bullets[i].pos.x > wld.ARENA_W then
+            w.bullets[i].life = 0.0
+        end
+        if w.bullets[i].pos.y < 0.0 || w.bullets[i].pos.y > wld.ARENA_H then
+            w.bullets[i].life = 0.0
+        end
+    end
+end
+
+// make_enemy e a fonte unica dos numeros de cada tipo; waves.nx so escolhe o
+// kind e a posicao.
+func make_enemy(kind: int, at: vec.V) -> wld.Enemy
+    let zero: vec.V = vec.V(0.0, 0.0)
+    if kind == 1 then
+        return wld.Enemy(at, zero, 1, 10.0, 11.0, 170.0, 8.0, 0.0)
+    end
+    if kind == 2 then
+        return wld.Enemy(at, zero, 2, 60.0, 20.0, 55.0, 20.0, 0.0)
+    end
+    return wld.Enemy(at, zero, 0, 20.0, 14.0, 90.0, 10.0, 0.0)
+end
+
+// update_enemies faz tres passadas: mira, separa e so entao anda. Separar
+// antes de andar evita que dois inimigos troquem de lado num quadro.
+func update_enemies(w: ref wld.World, dt: float) -> void
+    let n = length(w.enemies)
+    for i in range(n) do
+        let dir: vec.V = vec.norm(vec.sub(w.player.pos, w.enemies[i].pos))
+        w.enemies[i].vel = vec.scale(dir, w.enemies[i].speed)
+        if w.enemies[i].flash > 0.0 then
+            w.enemies[i].flash = w.enemies[i].flash - dt
+            if w.enemies[i].flash < 0.0 then
+                w.enemies[i].flash = 0.0
+            end
+        end
+    end
+
+    for i in range(n) do
+        for j in range(i + 1, n) do
+            let dx: float = w.enemies[j].pos.x - w.enemies[i].pos.x
+            let dy: float = w.enemies[j].pos.y - w.enemies[i].pos.y
+            let minr: float = w.enemies[i].radius + w.enemies[j].radius
+            let d2: float = dx * dx + dy * dy
+            if d2 < minr * minr then
+                let ux = 1.0
+                let uy = 0.0
+                let push = minr * 0.5
+                if d2 > 0.0001 then
+                    let d: float = vec.sqrt(d2)
+                    ux = dx / d
+                    uy = dy / d
+                    push = (minr - d) * 0.5
+                end
+                w.enemies[i].pos.x = w.enemies[i].pos.x - ux * push
+                w.enemies[i].pos.y = w.enemies[i].pos.y - uy * push
+                w.enemies[j].pos.x = w.enemies[j].pos.x + ux * push
+                w.enemies[j].pos.y = w.enemies[j].pos.y + uy * push
+            end
+        end
+    end
+
+    for i in range(n) do
+        w.enemies[i].pos.x = w.enemies[i].pos.x + w.enemies[i].vel.x * dt
+        w.enemies[i].pos.y = w.enemies[i].pos.y + w.enemies[i].vel.y * dt
+    end
+end
+
+// resolve_contact para no primeiro inimigo que encosta: a invencibilidade
+// existe justamente para o dano nao ser cobrado varias vezes no mesmo quadro.
+func resolve_contact(w: ref wld.World) -> void
+    if w.player.invuln > 0.0 then
+        return
+    end
+    for i in range(length(w.enemies)) do
+        let dx: float = w.player.pos.x - w.enemies[i].pos.x
+        let dy: float = w.player.pos.y - w.enemies[i].pos.y
+        let rr: float = wld.PLAYER_R + w.enemies[i].radius
+        if dx * dx + dy * dy <= rr * rr then
+            w.player.hp = w.player.hp - w.enemies[i].touch
+            w.player.invuln = INVULN
+            w.shake = HIT_SHAKE
+
+            let away: vec.V = vec.norm(vec.V(dx, dy))
+            if away.x == 0.0 && away.y == 0.0 then
+                away = vec.V(1.0, 0.0)
+            end
+            w.player.pos.x = w.player.pos.x + away.x * KNOCKBACK
+            w.player.pos.y = w.player.pos.y + away.y * KNOCKBACK
+            clamp_player(w)
+
+            if w.player.hp <= 0.0 then
+                w.player.hp = 0.0
+                w.screen = 2
+            end
+            return
+        end
+    end
+end
+
+func resolve_hits(w: ref wld.World) -> void
+    for bi in range(length(w.bullets)) do
+        if w.bullets[bi].life <= 0.0 then
+            continue
+        end
+        for ei in range(length(w.enemies)) do
+            if w.enemies[ei].hp <= 0.0 then
+                continue
+            end
+            let dx: float = w.enemies[ei].pos.x - w.bullets[bi].pos.x
+            let dy: float = w.enemies[ei].pos.y - w.bullets[bi].pos.y
+            let rr: float = w.enemies[ei].radius + BULLET_R
+            if dx * dx + dy * dy > rr * rr then
+                continue
+            end
+            w.enemies[ei].hp = w.enemies[ei].hp - w.bullets[bi].damage
+            w.enemies[ei].flash = FLASH
+            w.bullets[bi].hits = w.bullets[bi].hits + 1
+            if w.bullets[bi].hits > w.player.pierce then
+                w.bullets[bi].life = 0.0
+                break
+            end
+        end
+    end
+end
+
+func burst(w: ref wld.World, at: vec.V, kind: int) -> void
+    for i in range(SHARDS) do
+        let d: vec.V = rng.rand_dir()
+        let sp: float = rng.rand_float(60.0, 200.0)
+        append(ref w.particles, wld.Particle(at, vec.scale(d, sp), SHARD_LIFE, SHARD_LIFE, kind))
+    end
+end
+
+// reap e o unico lugar que remove: Noxy nao apaga elemento de array, entao
+// filtrar e reconstruir.
+func reap(w: ref wld.World) -> void
+    let kb: wld.Bullet[] = []
+    for i in range(length(w.bullets)) do
+        if w.bullets[i].life > 0.0 then
+            append(ref kb, w.bullets[i])
+        end
+    end
+    w.bullets = kb
+
+    let ke: wld.Enemy[] = []
+    for i in range(length(w.enemies)) do
+        if w.enemies[i].hp > 0.0 then
+            append(ref ke, w.enemies[i])
+        else
+            w.kills = w.kills + 1
+            burst(w, w.enemies[i].pos, w.enemies[i].kind)
+        end
+    end
+    w.enemies = ke
+end
+
+// O arrasto e por quadro, nao por segundo: o jogo roda travado em 60 fps
+// (set_fps), e estilhacos vivem meio segundo.
+func update_particles(w: ref wld.World, dt: float) -> void
+    let keep: wld.Particle[] = []
+    for i in range(length(w.particles)) do
+        w.particles[i].pos.x = w.particles[i].pos.x + w.particles[i].vel.x * dt
+        w.particles[i].pos.y = w.particles[i].pos.y + w.particles[i].vel.y * dt
+        w.particles[i].vel = vec.scale(w.particles[i].vel, SHARD_DRAG)
+        w.particles[i].life = w.particles[i].life - dt
+        if w.particles[i].life > 0.0 then
+            append(ref keep, w.particles[i])
+        end
+    end
+    w.particles = keep
+end
+
+// step fixa a ordem do quadro. arena.nx nao chama mais nada enquanto se joga.
+func step(w: ref wld.World, mv: vec.V, aim: vec.V, shooting: bool, dt: float) -> void
+    move_player(w, mv, aim, dt)
+    if shooting then
+        fire(w)
+    end
+    move_bullets(w, dt)
+    update_enemies(w, dt)
+    resolve_hits(w)
+    resolve_contact(w)
+    reap(w)
+    update_particles(w, dt)
+end
