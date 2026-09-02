@@ -95,3 +95,31 @@ func pose(w: wld.World) -> Pose
     end
     return Pose(IDLE_DOWN, frame_at(IDLE_DOWN, w.time, IDLE_FPS), false, visible)
 end
+
+// ---- inimigos: images/enemies_sheet.png, uma caminhada lateral por kind ----
+// Inimigos so olham para a esquerda ou para a direita, pelo sinal de vel.x:
+// a sheet nao tem vista de costas para o zumbi, e numa horda a lateral
+// funciona para cima e para baixo tambem.
+let ZOMBIE = 0
+let SOLDIER = 1
+let ZOMBIE_SOLDIER = 2
+let ENEMY_FRAMES: int[] = [4, 4, 4]
+let STRIDE = 10.0          // px andados por frame da passada: fps = speed / STRIDE
+
+// enemy_scale so muda o desenho; o raio de colisao mora em make_enemy.
+func enemy_scale(kind: int) -> float
+    if kind == 1 then
+        return 0.85
+    end
+    if kind == 2 then
+        return 1.35
+    end
+    return 1.0
+end
+
+func enemy_pose(e: wld.Enemy, t: float) -> Pose
+    let row: int = e.kind
+    let n: int = ENEMY_FRAMES[row]
+    let col: int = to_int(t * e.speed / STRIDE + e.phase * to_float(n)) % n
+    return Pose(row, col, e.vel.x < 0.0, e.flash <= 0.0)
+end

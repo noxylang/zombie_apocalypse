@@ -131,7 +131,7 @@ func test_world() -> void
 
     let a: wld.World = wld.new_world()
     let b: wld.World = wld.new_world()
-    append(ref a.enemies, wld.Enemy(vec.V(0.0, 0.0), vec.V(0.0, 0.0), 0, 1.0, 1.0, 1.0, 1.0, 0.0))
+    append(ref a.enemies, wld.Enemy(vec.V(0.0, 0.0), vec.V(0.0, 0.0), 0, 1.0, 1.0, 1.0, 1.0, 0.0, 0.0))
     check("mundos novos sao independentes", length(b.enemies) == 0)
 end
 
@@ -704,6 +704,41 @@ func test_anim() -> void
     check("atirando para baixo enquanto anda de lado usa andar frontal", wvp.row == anim.WALK_DOWN && !wvp.flip)
 end
 
+func test_enemy_anim() -> void
+    print("enemy anim")
+    let a: wld.Enemy = combat.make_enemy(0, vec.V(100.0, 200.0))
+    let b: wld.Enemy = combat.make_enemy(0, vec.V(340.0, 200.0))
+    let a2: wld.Enemy = combat.make_enemy(0, vec.V(100.0, 200.0))
+    check("a fase da passada vem da posicao de spawn", a.phase != b.phase && a.phase == a2.phase)
+    check("a fase e uma fracao do ciclo", a.phase >= 0.0 && a.phase < 1.0 && b.phase >= 0.0 && b.phase < 1.0)
+
+    let e: wld.Enemy = combat.make_enemy(0, vec.V(0.0, 0.0))
+    e.phase = 0.0
+    e.vel = vec.V(90.0, 0.0)
+    let p0: anim.Pose = anim.enemy_pose(e, 0.0)
+    check("chaser usa a linha do zumbi", p0.row == anim.ZOMBIE && p0.col == 0)
+    check("andando para a direita nao espelha e fica visivel", !p0.flip && p0.visible)
+    e.vel = vec.V(-90.0, 30.0)
+    check("andando para a esquerda espelha", anim.enemy_pose(e, 0.0).flip)
+    e.vel = vec.V(0.0, -90.0)
+    check("subindo reto mantem o lado direito", !anim.enemy_pose(e, 0.0).flip)
+    check("a passada anda a speed/10 fps: chaser a 9", anim.enemy_pose(e, 0.12).col == 1)
+    check("a passada da a volta na linha", anim.enemy_pose(e, 4.0 / 9.0 + 0.01).col == 0)
+    e.phase = 0.5
+    check("a fase desloca o ciclo em fracao dos frames", anim.enemy_pose(e, 0.0).col == 2)
+    e.flash = 0.03
+    check("atingido, o inimigo some por um instante", !anim.enemy_pose(e, 0.0).visible)
+
+    let r: wld.Enemy = combat.make_enemy(1, vec.V(0.0, 0.0))
+    r.phase = 0.0
+    check("rusher usa a linha do soldado", anim.enemy_pose(r, 0.0).row == anim.SOLDIER)
+    check("rusher anda a 17 fps", anim.enemy_pose(r, 0.06).col == 1)
+    let t: wld.Enemy = combat.make_enemy(2, vec.V(0.0, 0.0))
+    check("tank usa a linha do zumbi soldado", anim.enemy_pose(t, 0.0).row == anim.ZOMBIE_SOLDIER)
+    check("cada linha de inimigo tem 4 frames", length(anim.ENEMY_FRAMES) == 3 && anim.ENEMY_FRAMES[0] == 4 && anim.ENEMY_FRAMES[1] == 4 && anim.ENEMY_FRAMES[2] == 4)
+    check("escala por tipo: chaser 1, rusher menor, tank maior", anim.enemy_scale(0) == 1.0 && anim.enemy_scale(1) == 0.85 && anim.enemy_scale(2) == 1.35)
+end
+
 test_vec()
 test_rng()
 test_world()
@@ -715,4 +750,5 @@ test_waves()
 test_upgrades()
 test_flow()
 test_anim()
+test_enemy_anim()
 report()

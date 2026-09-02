@@ -15,3 +15,6 @@ Desktop.ini
 .DS_Store
 .vscode/
 .idea/
+
+# Cache do Python (tools/pack_sheet.py)
+__pycache__/

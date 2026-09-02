@@ -111,16 +111,19 @@ func move_bullets(w: ref wld.World, dt: float) -> void
 end
 
 // make_enemy e a fonte unica dos numeros de cada tipo; waves.nx so escolhe o
-// kind e a posicao.
+// kind e a posicao. A fase da passada sai da posicao de spawn: deterministica,
+// mas diferente de um inimigo para o outro, para a horda nao marchar junta.
 func make_enemy(kind: int, at: vec.V) -> wld.Enemy
     let zero: vec.V = vec.V(0.0, 0.0)
+    let v: float = (at.x + at.y * 1.7) / 97.0
+    let phase: float = v - to_float(to_int(v))
     if kind == 1 then
-        return wld.Enemy(at, zero, 1, 10.0, 11.0, 170.0, 8.0, 0.0)
+        return wld.Enemy(at, zero, 1, 10.0, 11.0, 170.0, 8.0, 0.0, phase)
     end
     if kind == 2 then
-        return wld.Enemy(at, zero, 2, 60.0, 20.0, 55.0, 20.0, 0.0)
+        return wld.Enemy(at, zero, 2, 60.0, 20.0, 55.0, 20.0, 0.0, phase)
     end
-    return wld.Enemy(at, zero, 0, 20.0, 14.0, 90.0, 10.0, 0.0)
+    return wld.Enemy(at, zero, 0, 20.0, 14.0, 90.0, 10.0, 0.0, phase)
 end
 
 // update_enemies faz tres passadas: mira, separa e so entao anda. Separar

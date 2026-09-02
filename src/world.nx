@@ -33,7 +33,8 @@ struct Enemy
     radius: float,
     speed: float,
     touch: float,          // dano de contato
-    flash: float           // segundos restantes de flash branco
+    flash: float,          // segundos restantes de flash de acerto
+    phase: float           // fracao do ciclo da passada; so o desenho usa
 end
 
 struct Bullet

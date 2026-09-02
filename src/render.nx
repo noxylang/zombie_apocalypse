@@ -1,7 +1,6 @@
-// src/render.nx — o unico modulo que desenha. Os inimigos sao poligonos
-// montados a partir da direcao do movimento e da sua perpendicular, sem
-// angulo; o jogador e um frame de images/shooter_sheet.png escolhido por
-// src/anim.
+// src/render.nx — o unico modulo que desenha. Jogador e inimigos sao frames
+// das sheets em images/, escolhidos por src/anim; o resto (grade, balas,
+// particulas, HUD) e linha, circulo e retangulo.
 use github_com.estevaofon.noxy_game_engine as game
 use src.vec as vec
 use src.world as wld
@@ -18,11 +17,13 @@ let GRID_STEP = 80.0
 let PLAYER_SCALE = 1.0
 
 let sheet: game.Image = game.Image(0, 0, 0)
+let esheet: game.Image = game.Image(0, 0, 0)
 
-// load carrega a sheet do jogador. Tem de vir depois de game.init: a engine
-// recusa load_image antes de a janela existir.
+// load carrega as sheets. Tem de vir depois de game.init: a engine recusa
+// load_image antes de a janela existir.
 func load() -> void
     sheet = game.load_image("images/shooter_sheet.png")
+    esheet = game.load_image("images/enemies_sheet.png")
 end
 
 func kind_color(k: int) -> game.Color
@@ -92,47 +93,18 @@ func draw_player(w: wld.World) -> void
     game.draw_image_sub_ex(sheet, sx, sy, anim.CELL_W, anim.CELL_H, x, y, PLAYER_SCALE, 0.0, 1.0, p.flip)
 end
 
-func draw_enemy(e: wld.Enemy) -> void
-    let d: vec.V = vec.norm(e.vel)
-    if d.x == 0.0 && d.y == 0.0 then
-        d = vec.V(1.0, 0.0)
-    end
-    let p: vec.V = vec.perp(d)
-    let c: vec.V = e.pos
-    let r: float = e.radius
-    let col: game.Color = kind_color(e.kind)
-    if e.flash > 0.0 then
-        col = game.WHITE
-    end
-
-    if e.kind == 1 then
-        let tri: float[] = [
-            c.x + d.x * r, c.y + d.y * r,
-            c.x - d.x * r * 0.6 + p.x * r * 0.75, c.y - d.y * r * 0.6 + p.y * r * 0.75,
-            c.x - d.x * r * 0.6 - p.x * r * 0.75, c.y - d.y * r * 0.6 - p.y * r * 0.75
-        ]
-        game.draw_polygon(tri, col)
+// draw_enemy: a celula do kind, centrada na posicao e escalada por tipo.
+func draw_enemy(e: wld.Enemy, t: float) -> void
+    let p: anim.Pose = anim.enemy_pose(e, t)
+    if !p.visible then
         return
     end
-
-    if e.kind == 2 then
-        let sq: float[] = [
-            c.x + d.x * r + p.x * r, c.y + d.y * r + p.y * r,
-            c.x + d.x * r - p.x * r, c.y + d.y * r - p.y * r,
-            c.x - d.x * r - p.x * r, c.y - d.y * r - p.y * r,
-            c.x - d.x * r + p.x * r, c.y - d.y * r + p.y * r
-        ]
-        game.draw_polygon(sq, col)
-        return
-    end
-
-    let dia: float[] = [
-        c.x + d.x * r, c.y + d.y * r,
-        c.x + p.x * r * 0.65, c.y + p.y * r * 0.65,
-        c.x - d.x * r, c.y - d.y * r,
-        c.x - p.x * r * 0.65, c.y - p.y * r * 0.65
-    ]
-    game.draw_polygon(dia, col)
+    let sc: float = anim.enemy_scale(e.kind)
+    let sx: float = to_float(p.col) * anim.CELL_W
+    let sy: float = to_float(p.row) * anim.CELL_H
+    let x: float = e.pos.x - anim.CELL_W * sc / 2.0
+    let y: float = e.pos.y - anim.CELL_H * sc / 2.0
+    game.draw_image_sub_ex(esheet, sx, sy, anim.CELL_W, anim.CELL_H, x, y, sc, 0.0, 1.0, p.flip)
 end
 
 func world(w: wld.World) -> void
@@ -156,7 +128,7 @@ func world(w: wld.World) -> void
     end
 
     for i in range(length(w.enemies)) do
-        draw_enemy(w.enemies[i])
+        draw_enemy(w.enemies[i], w.time)
     end
 
     draw_player(w)

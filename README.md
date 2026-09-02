@@ -3,8 +3,8 @@
 Um arena shooter top-down de oito ondas, escrito em [Noxy](https://github.com/estevaofon/noxy)
 sobre o [noxy_game_engine](https://github.com/estevaofon/noxy_game_engine).
 
-Inimigos, balas e cenário são polígonos, círculos e linhas; o jogador é um
-sprite animado (veja "Sprite do jogador").
+Jogador e inimigos são sprites animados (veja "Sprites"); balas, partículas e
+cenário são linhas, círculos e retângulos.
 
 ## Jogar
 
@@ -29,11 +29,11 @@ de trabalho, não do arquivo.
 Oito ondas numa arena de 1600×1200, com a câmera seguindo o jogador. A onda
 `n` traz `4 + 3n` inimigos, que entram pelas bordas:
 
-| Inimigo | Forma | Velocidade | Vida | Contato |
+| Inimigo | Sprite | Velocidade | Vida | Contato |
 |---|---|---|---|---|
-| Chaser | losango vermelho | 90 | 20 | 10 |
-| Rusher | triângulo laranja | 170 | 10 | 8 |
-| Tank | quadrado roxo | 55 | 60 | 20 |
+| Chaser | zumbi de braços estendidos | 90 | 20 | 10 |
+| Rusher | soldado mascarado correndo | 170 | 10 | 8 |
+| Tank | zumbi soldado, maior | 55 | 60 | 20 |
 
 Chasers vêm sozinhos na onda 1, rushers entram na 2, tanks na 4. Ao limpar
 uma onda você escolhe um de três upgrades sorteados entre cadência, dano,
@@ -51,20 +51,23 @@ desenha, e `arena.nx` só traduz teclado e mouse em vetores e entrega para
 
 Essa separação é o que permite testar o jogo inteiro sem abrir janela:
 
-    noxy tests/run.nx        # 196 asserts sobre a simulação e a animação, sem janela
+    noxy tests/run.nx        # 219 asserts sobre a simulação e a animação, sem janela
     noxy tests/smoke.nx      # abre a janela, percorre as 4 telas, sai sozinho
 
 `run.nx` cobre a lógica; `smoke.nx` existe porque erro de comando de desenho
 só aparece quando há uma janela para recusá-lo.
 
-## Sprite do jogador
+## Sprites
 
-`images/shooter.png` é a sheet original, gerada no Gemini. Ela não vem numa
-grade regular — frames de larguras diferentes, o flash do cano invadindo a
-célula vizinha e várias linhas misturando vista frontal e lateral — então o
-jogo não a usa direto. `tools/pack_sheet.py` (Python com Pillow) recorta as
-seis linhas coerentes e escreve `images/shooter_sheet.png`, uma animação por
-linha em células de 80×64 com o corpo sempre no centro:
+`images/shooter.png` e `images/enemies.png` são as sheets originais, geradas
+no Gemini. Elas não vêm numa grade regular — frames de larguras diferentes,
+o flash do cano invadindo a célula vizinha, fumacinhas soltas e várias linhas
+misturando vista frontal e lateral — então o jogo não as usa direto.
+`tools/pack_sheet.py` (Python com Pillow) recorta só as linhas coerentes e
+escreve `images/shooter_sheet.png` e `images/enemies_sheet.png`, uma animação
+por linha em células de 80×64 com o corpo sempre no centro.
+
+Jogador (`shooter_sheet.png`):
 
 | Linha | Animação | Frames |
 |---|---|---|
@@ -81,13 +84,26 @@ sheet original misturam tronco de costas e de frente em 3/4, e alternar entre
 eles a 10 fps parecia o soldado girando a cada ciclo; por isso o andar de lado
 usa só os três frames de vista lateral limpa da sheet (um repetido para fechar
 o ciclo passo largo, pernas juntas), e o parado de lado é um frame à parte,
-espelhado da caminhada que olha para a esquerda. Parado ou atirando, o sprite olha para a mira; andando sem atirar, olha
-para onde anda (seguir a mira faria o jogador virar para trás ao passar pelo
+espelhado da caminhada que olha para a esquerda.
+
+Parado ou atirando, o sprite olha para a mira; andando sem atirar, olha para
+onde anda (seguir a mira faria o jogador virar para trás ao passar pelo
 cursor, o que acontece fácil onde a câmera trava nas bordas). A direção é
-quantizada em quatro; para a esquerda o render espelha as linhas de lado. Não há linha de tiro para cima ou para
-baixo, então ali o tiro usa o andar ou o idle. Ao regenerar a sheet no Gemini,
-ajuste `ANIMATIONS` no script se a posição das linhas mudar, rode-o a partir
-da raiz e confira `FRAMES` em `src/anim.nx`.
+quantizada em quatro; para a esquerda o render espelha as linhas de lado. Não
+há linha de tiro para cima ou para baixo, então ali o tiro usa o andar ou o
+idle.
+
+Inimigos (`enemies_sheet.png`), uma caminhada lateral por tipo, na ordem do
+`kind`: zumbi comum, soldado mascarado, zumbi soldado. Inimigo só olha para a
+esquerda ou para a direita, pelo sinal da velocidade; a passada anda a
+`speed / 10` frames por segundo, com uma fase própria por inimigo derivada da
+posição de spawn, para a horda não marchar em sincronia. Enquanto o `flash` de
+acerto dura, o sprite some. A escala de desenho varia por tipo (rusher menor,
+tank maior); os raios de colisão continuam em `combat.make_enemy`.
+
+Ao regenerar uma sheet no Gemini, ajuste `PLAYER` ou `ENEMIES` no script se a
+posição das linhas mudar, rode-o a partir da raiz e confira `FRAMES` e
+`ENEMY_FRAMES` em `src/anim.nx`.
 
 ## Nota de implementação
 
