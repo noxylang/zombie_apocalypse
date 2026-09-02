@@ -4,6 +4,7 @@ use src.vec as vec
 use src.world as wld
 use src.rng as rng
 use src.combat as combat
+use src.level as level
 
 let TOTAL = 8
 let SPAWN_GAP = 0.35
@@ -57,6 +58,23 @@ func edge_point() -> vec.V
     return vec.V(MARGIN, rng.rand_float(MARGIN, wld.ARENA_H - MARGIN))
 end
 
+// spawn_point e edge_point que evita nascer dentro de obstaculo: re-sorteia
+// ate cair em ponto livre para o maior inimigo. Se nem assim, o push_out do
+// quadro seguinte poe o inimigo para fora.
+let SPAWN_TRIES = 12
+let SPAWN_CLEAR = 24.0
+
+func spawn_point(w: wld.World) -> vec.V
+    let p: vec.V = edge_point()
+    for i in range(SPAWN_TRIES) do
+        if level.free(p, SPAWN_CLEAR, w.obstacles) then
+            return p
+        end
+        p = edge_point()
+    end
+    return p
+end
+
 func update(w: ref wld.World, dt: float) -> void
     if w.to_spawn <= 0 then
         return
@@ -66,7 +84,7 @@ func update(w: ref wld.World, dt: float) -> void
         return
     end
     w.spawn_cd = SPAWN_GAP
-    append(ref w.enemies, combat.make_enemy(pick_kind(w.wave), edge_point()))
+    append(ref w.enemies, combat.make_enemy(pick_kind(w.wave), spawn_point(*w)))
     w.to_spawn = w.to_spawn - 1
 end
 

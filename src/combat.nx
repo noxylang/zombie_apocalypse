@@ -3,6 +3,7 @@
 use src.vec as vec
 use src.world as wld
 use src.rng as rng
+use src.level as level
 
 let SHAKE_DECAY = 30.0
 let COS12 = 0.97814760
@@ -41,6 +42,7 @@ func move_player(w: ref wld.World, mv: vec.V, aim: vec.V, dt: float) -> void
     w.player.move = d
     w.player.pos.x = w.player.pos.x + d.x * w.player.speed * dt
     w.player.pos.y = w.player.pos.y + d.y * w.player.speed * dt
+    w.player.pos = level.push_out(w.player.pos, wld.PLAYER_R, w.obstacles)
     clamp_player(w)
 
     let a: vec.V = vec.norm(aim)
@@ -107,6 +109,9 @@ func move_bullets(w: ref wld.World, dt: float) -> void
         if w.bullets[i].pos.y < 0.0 || w.bullets[i].pos.y > wld.ARENA_H then
             w.bullets[i].life = 0.0
         end
+        if level.inside(w.bullets[i].pos, w.obstacles) then
+            w.bullets[i].life = 0.0
+        end
     end
 end
 
@@ -127,7 +132,9 @@ func make_enemy(kind: int, at: vec.V) -> wld.Enemy
 end
 
 // update_enemies faz tres passadas: mira, separa e so entao anda. Separar
-// antes de andar evita que dois inimigos troquem de lado num quadro.
+// antes de andar evita que dois inimigos troquem de lado num quadro. Depois
+// de andar, cada um e empurrado para fora dos obstaculos: sem rota, a
+// perseguicao em linha reta vira deslize ao longo da parede.
 func update_enemies(w: ref wld.World, dt: float) -> void
     let n = length(w.enemies)
     for i in range(n) do
@@ -168,6 +175,7 @@ func update_enemies(w: ref wld.World, dt: float) -> void
     for i in range(n) do
         w.enemies[i].pos.x = w.enemies[i].pos.x + w.enemies[i].vel.x * dt
         w.enemies[i].pos.y = w.enemies[i].pos.y + w.enemies[i].vel.y * dt
+        w.enemies[i].pos = level.push_out(w.enemies[i].pos, w.enemies[i].radius, w.obstacles)
     end
 end
 
@@ -192,6 +200,7 @@ func resolve_contact(w: ref wld.World) -> void
             end
             w.player.pos.x = w.player.pos.x + away.x * KNOCKBACK
             w.player.pos.y = w.player.pos.y + away.y * KNOCKBACK
+            w.player.pos = level.push_out(w.player.pos, wld.PLAYER_R, w.obstacles)
             clamp_player(w)
 
             if w.player.hp <= 0.0 then

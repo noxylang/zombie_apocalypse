@@ -9,6 +9,7 @@ use src.waves as waves
 use src.upgrades as up
 use src.flow as flow
 use src.anim as anim
+use src.level as level
 
 let fails = 0
 let total = 0
@@ -117,7 +118,9 @@ end
 func test_world() -> void
     print("world")
     let w: wld.World = wld.new_world()
-    check("jogador comeca no centro da arena", w.player.pos.x == wld.ARENA_W / 2.0 && w.player.pos.y == wld.ARENA_H / 2.0)
+    check("jogador comeca no ponto de partida do mapa", w.player.pos.x == wld.START.x && w.player.pos.y == wld.START.y)
+    check("o ponto de partida esta dentro da arena", wld.START.x > 0.0 && wld.START.x < wld.ARENA_W && wld.START.y > 0.0 && wld.START.y < wld.ARENA_H)
+    check("mundo novo nao tem obstaculos", length(w.obstacles) == 0)
     check("vida cheia", w.player.hp == 100.0 && w.player.hp_max == 100.0)
     check("um tiro por vez no comeco", w.player.shots == 1)
     check("sem perfuracao no comeco", w.player.pierce == 0)
@@ -144,12 +147,12 @@ func test_move() -> void
 
     let d: wld.World = wld.new_world()
     combat.move_player(ref d, vec.V(1.0, 1.0), vec.V(1.0, 0.0), 1.0)
-    let andou: float = vec.dist(d.player.pos, vec.V(wld.ARENA_W / 2.0, wld.ARENA_H / 2.0))
+    let andou: float = vec.dist(d.player.pos, wld.START)
     check("diagonal anda o mesmo que a reta", near(andou, 220.0, 0.001))
 
     let s: wld.World = wld.new_world()
     combat.move_player(ref s, vec.V(0.0, 0.0), vec.V(1.0, 0.0), 1.0)
-    check("sem input nao anda", s.player.pos.x == wld.ARENA_W / 2.0 && s.player.pos.y == wld.ARENA_H / 2.0)
+    check("sem input nao anda", s.player.pos.x == wld.START.x && s.player.pos.y == wld.START.y)
 
     let p: wld.World = wld.new_world()
     for i in range(60) do
@@ -739,6 +742,83 @@ func test_enemy_anim() -> void
     check("escala por tipo: chaser 1, rusher menor, tank maior", anim.enemy_scale(0) == 1.0 && anim.enemy_scale(1) == 0.85 && anim.enemy_scale(2) == 1.35)
 end
 
+func test_map() -> void
+    print("map")
+    // um bloco de 100x100 em (200, 200)
+    let box: float[] = [200.0, 200.0, 100.0, 100.0]
+
+    let longe: vec.V = level.push_out(vec.V(100.0, 100.0), 12.0, box)
+    check("longe do bloco, nada muda", longe.x == 100.0 && longe.y == 100.0)
+    let esq: vec.V = level.push_out(vec.V(195.0, 250.0), 12.0, box)
+    check("encostando pela esquerda, sai para x = borda - raio", near(esq.x, 188.0, 0.0001) && esq.y == 250.0)
+    let cima: vec.V = level.push_out(vec.V(250.0, 195.0), 12.0, box)
+    check("encostando por cima, sai para y = borda - raio", cima.x == 250.0 && near(cima.y, 188.0, 0.0001))
+    let dentro: vec.V = level.push_out(vec.V(292.0, 250.0), 12.0, box)
+    check("centro dentro do bloco sai pela face mais proxima (direita)", near(dentro.x, 312.0, 0.0001) && dentro.y == 250.0)
+    let baixo: vec.V = level.push_out(vec.V(250.0, 297.0), 12.0, box)
+    check("centro dentro perto da base sai por baixo", baixo.x == 250.0 && near(baixo.y, 312.0, 0.0001))
+    let quina: vec.V = level.push_out(vec.V(192.0, 192.0), 12.0, box)
+    check("na quina, sai na diagonal a raio da quina", near(vec.dist(quina, vec.V(200.0, 200.0)), 12.0, 0.001) && quina.x < 200.0 && quina.y < 200.0)
+
+    check("ponto dentro do bloco", level.inside(vec.V(250.0, 250.0), box))
+    check("ponto fora do bloco", !level.inside(vec.V(150.0, 250.0), box))
+    check("livre longe do bloco", level.free(vec.V(100.0, 100.0), 12.0, box))
+    check("nao livre encostando no bloco", !level.free(vec.V(195.0, 250.0), 12.0, box))
+    let nada: float[] = []
+    check("sem obstaculos tudo e livre", level.free(vec.V(250.0, 250.0), 12.0, nada))
+
+    // deslize: andando na diagonal contra uma parede, o jogador segue ao longo dela
+    let w: wld.World = wld.new_world()
+    w.obstacles = [150.0, 0.0, 100.0, 400.0]
+    w.player.pos = vec.V(100.0, 100.0)
+    for i in range(30) do
+        combat.move_player(ref w, vec.V(1.0, 1.0), vec.V(1.0, 0.0), 0.016)
+    end
+    check("a parede segura o jogador", near(w.player.pos.x, 150.0 - wld.PLAYER_R, 0.0001))
+    check("mas ele desliza ao longo dela", w.player.pos.y > 150.0)
+
+    let e: wld.World = wld.new_world()
+    e.obstacles = [150.0, 0.0, 100.0, 400.0]
+    e.player.pos = vec.V(400.0, 100.0)
+    append(ref e.enemies, combat.make_enemy(0, vec.V(160.0, 100.0)))
+    combat.update_enemies(ref e, 0.016)
+    let ex: float = e.enemies[0].pos.x
+    let er: float = e.enemies[0].radius
+    check("inimigo dentro da parede e empurrado para fora", ex <= 150.0 - er + 0.0001 || ex >= 250.0 + er - 0.0001)
+
+    let b: wld.World = wld.new_world()
+    b.obstacles = [150.0, 0.0, 100.0, 400.0]
+    b.player.pos = vec.V(400.0, 300.0)
+    append(ref b.bullets, wld.Bullet(vec.V(100.0, 100.0), vec.V(600.0, 0.0), 1.0, 10.0, 0))
+    combat.step(ref b, vec.V(0.0, 0.0), vec.V(1.0, 0.0), false, 0.1)
+    check("a bala morre ao entrar na parede", length(b.bullets) == 0)
+
+    let k: wld.World = wld.new_world()
+    k.obstacles = [0.0, 0.0, 300.0, wld.ARENA_H]      // faixa solida em toda a borda esquerda
+    let ruim = 0
+    for i in range(200) do
+        let sp: vec.V = waves.spawn_point(k)
+        if !level.free(sp, 24.0, k.obstacles) then
+            ruim = ruim + 1
+        end
+    end
+    check("spawn evita obstaculos", ruim == 0)
+
+    check("o mapa tem obstaculos", length(level.OBSTACLES) > 0 && length(level.OBSTACLES) % 4 == 0)
+    let fora = 0
+    for i in range(length(level.OBSTACLES) / 4) do
+        let x: float = level.OBSTACLES[i * 4]
+        let y: float = level.OBSTACLES[i * 4 + 1]
+        let rw: float = level.OBSTACLES[i * 4 + 2]
+        let rh: float = level.OBSTACLES[i * 4 + 3]
+        if rw <= 0.0 || rh <= 0.0 || x < 0.0 || y < 0.0 || x + rw > wld.ARENA_W || y + rh > wld.ARENA_H then
+            fora = fora + 1
+        end
+    end
+    check("todo obstaculo tem tamanho positivo e cabe na arena", fora == 0)
+    check("o ponto de partida fica livre com folga", level.free(wld.START, wld.PLAYER_R + 20.0, level.OBSTACLES))
+end
+
 test_vec()
 test_rng()
 test_world()
@@ -751,4 +831,5 @@ test_upgrades()
 test_flow()
 test_anim()
 test_enemy_anim()
+test_map()
 report()

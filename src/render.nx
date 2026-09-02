@@ -1,6 +1,7 @@
-// src/render.nx — o unico modulo que desenha. Jogador e inimigos sao frames
-// das sheets em images/, escolhidos por src/anim; o resto (grade, balas,
-// particulas, HUD) e linha, circulo e retangulo.
+// src/render.nx — o unico modulo que desenha. O chao e images/background.jpg
+// em escala 1:1 com a arena; jogador e inimigos sao frames das sheets em
+// images/, escolhidos por src/anim; balas, particulas e HUD sao linha,
+// circulo e retangulo. F1 (arena.nx) liga o overlay dos obstaculos.
 use github_com.estevaofon.noxy_game_engine as game
 use src.vec as vec
 use src.world as wld
@@ -10,20 +11,29 @@ use src.waves as waves
 use src.anim as anim
 
 let BG: game.Color = game.rgb(10, 12, 20)
-let GRID: game.Color = game.rgb(24, 30, 52)
 let WALL: game.Color = game.rgb(70, 84, 130)
 let BULLET_C: game.Color = game.rgb(255, 244, 180)
-let GRID_STEP = 80.0
+let OBSTACLE_FILL: game.Color = game.rgba(255, 40, 40, 70)
+let OBSTACLE_LINE: game.Color = game.rgba(255, 230, 0, 200)
 let PLAYER_SCALE = 1.0
 
 let sheet: game.Image = game.Image(0, 0, 0)
 let esheet: game.Image = game.Image(0, 0, 0)
+let background: game.Image = game.Image(0, 0, 0)
+let show_obstacles: bool = false
 
-// load carrega as sheets. Tem de vir depois de game.init: a engine recusa
-// load_image antes de a janela existir.
+// load carrega as sheets e o mapa. Tem de vir depois de game.init: a engine
+// recusa load_image antes de a janela existir.
 func load() -> void
     sheet = game.load_image("images/shooter_sheet.png")
     esheet = game.load_image("images/enemies_sheet.png")
+    background = game.load_image("images/background.jpg")
+end
+
+// toggle_obstacles liga e desliga o overlay dos retangulos de colisao, para
+// conferir o tracado do mapa jogando.
+func toggle_obstacles() -> void
+    show_obstacles = !show_obstacles
 end
 
 func kind_color(k: int) -> game.Color
@@ -66,16 +76,17 @@ func camera_shaken(w: wld.World) -> vec.V
     return vec.V(c.x + rng.rand_float(-w.shake, w.shake), c.y + rng.rand_float(-w.shake, w.shake))
 end
 
-func draw_grid(cam: vec.V) -> void
-    let x: float = to_float(to_int(cam.x / GRID_STEP)) * GRID_STEP
-    while x < cam.x + wld.VIEW_W + GRID_STEP do
-        game.draw_line(x, cam.y, x, cam.y + wld.VIEW_H, GRID, 1.0)
-        x = x + GRID_STEP
-    end
-    let y: float = to_float(to_int(cam.y / GRID_STEP)) * GRID_STEP
-    while y < cam.y + wld.VIEW_H + GRID_STEP do
-        game.draw_line(cam.x, y, cam.x + wld.VIEW_W, y, GRID, 1.0)
-        y = y + GRID_STEP
+// draw_obstacles desenha so os retangulos que caem na tela.
+func draw_obstacles(w: wld.World, cam: vec.V) -> void
+    for i in range(length(w.obstacles) / 4) do
+        let x: float = w.obstacles[i * 4]
+        let y: float = w.obstacles[i * 4 + 1]
+        let rw: float = w.obstacles[i * 4 + 2]
+        let rh: float = w.obstacles[i * 4 + 3]
+        if game.rect_overlaps(x, y, rw, rh, cam.x, cam.y, wld.VIEW_W, wld.VIEW_H) then
+            game.draw_rect(x, y, rw, rh, OBSTACLE_FILL)
+            game.draw_rect_outline(x, y, rw, rh, OBSTACLE_LINE, 2.0)
+        end
     end
 end
 
@@ -112,8 +123,7 @@ func world(w: wld.World) -> void
     let cam: vec.V = camera_shaken(w)
     game.camera_set(cam.x, cam.y)
 
-    draw_grid(cam)
-    game.draw_rect_outline(0.0, 0.0, wld.ARENA_W, wld.ARENA_H, WALL, 4.0)
+    game.draw_image(background, 0.0, 0.0)
 
     for i in range(length(w.particles)) do
         let pt: wld.Particle = w.particles[i]
@@ -132,6 +142,9 @@ func world(w: wld.World) -> void
     end
 
     draw_player(w)
+    if show_obstacles then
+        draw_obstacles(w, cam)
+    end
     game.camera_reset()
 end
 

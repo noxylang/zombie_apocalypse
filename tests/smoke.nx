@@ -8,6 +8,7 @@ use src.combat as combat
 use src.waves as waves
 use src.upgrades as up
 use src.flow as flow
+use src.level as level
 use src.render as render
 
 game.init(960, 640, "smoke")
@@ -15,6 +16,8 @@ game.set_fps(60)
 render.load()
 
 let w: wld.World = wld.new_world()
+w.obstacles = level.OBSTACLES
+render.toggle_obstacles()        // o overlay tambem e caminho de desenho
 flow.begin(ref w)
 w.wave = 6
 w.player.shots = 3

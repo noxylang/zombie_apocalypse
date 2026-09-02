@@ -3,8 +3,9 @@
 Um arena shooter top-down de oito ondas, escrito em [Noxy](https://github.com/estevaofon/noxy)
 sobre o [noxy_game_engine](https://github.com/estevaofon/noxy_game_engine).
 
-Jogador e inimigos são sprites animados (veja "Sprites"); balas, partículas e
-cenário são linhas, círculos e retângulos.
+O chão é um mapa desenhado (veja "Mapa e colisão"); jogador e inimigos são
+sprites animados (veja "Sprites"); balas, partículas e HUD são linhas,
+círculos e retângulos.
 
 ## Jogar
 
@@ -22,12 +23,13 @@ de trabalho, não do arquivo.
 | Botão esquerdo (segurar) | atirar |
 | 1 / 2 / 3 | escolher o upgrade entre ondas |
 | R | recomeçar depois do fim |
+| F1 | mostrar os retângulos de colisão |
 | Escape | sair |
 
 ## O jogo
 
-Oito ondas numa arena de 1600×1200, com a câmera seguindo o jogador. A onda
-`n` traz `4 + 3n` inimigos, que entram pelas bordas:
+Oito ondas num pátio industrial de 2816×1536, com a câmera seguindo o
+jogador. A onda `n` traz `4 + 3n` inimigos, que entram pelas bordas:
 
 | Inimigo | Sprite | Velocidade | Vida | Contato |
 |---|---|---|---|---|
@@ -42,20 +44,41 @@ vitória.
 
 ## Como está organizado
 
-A simulação — `src/vec`, `src/rng`, `src/world`, `src/combat`, `src/waves`,
-`src/upgrades`, `src/flow` — é aritmética pura sobre um struct `World` e não
-conhece a engine. `src/anim` lê o `World` e escolhe o frame do jogador (linha,
+A simulação — `src/vec`, `src/rng`, `src/world`, `src/level`, `src/combat`,
+`src/waves`, `src/upgrades`, `src/flow` — é aritmética pura sobre um struct
+`World` e não conhece a engine. `src/anim` lê o `World` e escolhe o frame do jogador (linha,
 coluna e espelhamento), também sem engine. `src/render` é o único módulo que
 desenha, e `arena.nx` só traduz teclado e mouse em vetores e entrega para
 `flow.advance`.
 
 Essa separação é o que permite testar o jogo inteiro sem abrir janela:
 
-    noxy tests/run.nx        # 219 asserts sobre a simulação e a animação, sem janela
+    noxy tests/run.nx        # 240 asserts sobre a simulação, o mapa e a animação, sem janela
     noxy tests/smoke.nx      # abre a janela, percorre as 4 telas, sai sozinho
 
 `run.nx` cobre a lógica; `smoke.nx` existe porque erro de comando de desenho
 só aparece quando há uma janela para recusá-lo.
+
+## Mapa e colisão
+
+`images/background.jpg` é o mapa, gerado no Gemini, desenhado em escala 1:1:
+a arena tem exatamente o tamanho da imagem. Noxy não lê pixels, então os
+obstáculos são dados: `src/level.nx` lista retângulos (x, y, largura, altura)
+traçados à mão sobre a imagem — galpões, prédios, vagões, contêineres,
+veículos, muros e silos. Cercas, portões e a tubulação elevada ficam
+passáveis de propósito: os inimigos perseguem em linha reta e só deslizam em
+parede, e um pátio cercado com um portão viraria uma armadilha onde eles
+encalham. Miudezas como caixotes, barris e pneus também ficam de fora.
+
+Jogador e inimigos são empurrados para fora dos retângulos depois de andar
+(`level.push_out`), o que dá o deslize ao longo das paredes; balas morrem ao
+entrar num retângulo; o spawn na borda re-sorteia até cair em ponto livre.
+`World.obstacles` começa vazio — `arena.nx` instala `level.OBSTACLES`, e os
+testes usam retângulos próprios. O ponto de partida é `world.START`.
+
+Aperte F1 no jogo para ver os retângulos sobre o mapa. Para ajustar um, mude
+os números em `src/level.nx`; o teste `test_map` confere que todos cabem na
+arena e que a partida fica livre.
 
 ## Sprites
 

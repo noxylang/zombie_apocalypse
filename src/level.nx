@@ -1,0 +1,154 @@
+// src/level.nx — o mapa: os obstaculos de images/background.jpg como
+// retangulos (x, y, largura, altura, em pixels do mapa), e a geometria de
+// colisao. Nao conhece a engine. O ponto de partida mora em world.START.
+use src.vec as vec
+use src.world as wld
+
+// OBSTACLES: quatro floats por retangulo, tracados a mao sobre a imagem
+// (tools/ nao gera isto; F1 no jogo mostra os retangulos). Entram predios,
+// galpoes, vagoes, conteineres, veiculos, muros e silos. Ficam de fora, de
+// proposito: cercas e portoes (os inimigos so deslizam em parede, e um patio
+// cercado viraria armadilha), a tubulacao elevada, e miudezas como caixotes,
+// barris, pneus e paletes.
+let OBSTACLES: float[] = [
+    // trem parado a esquerda (vagoes emendados) e o trem do topo
+    110.0, 165.0, 95.0, 1175.0,
+    750.0, 15.0, 730.0, 85.0,
+    // caminhao batido e vagoes descarrilados junto aos trilhos
+    735.0, 110.0, 170.0, 80.0,
+    1060.0, 118.0, 415.0, 85.0,
+    // galpao de chapa (noroeste) e os muros de tijolo em volta do patio
+    770.0, 185.0, 360.0, 215.0,
+    555.0, 245.0, 215.0, 55.0,
+    555.0, 245.0, 22.0, 155.0,
+    1130.0, 250.0, 340.0, 50.0,
+    1450.0, 250.0, 22.0, 150.0,
+    // galpoes do norte e do canto nordeste
+    1660.0, 0.0, 850.0, 300.0,
+    2520.0, 30.0, 180.0, 270.0,
+    2575.0, 300.0, 125.0, 100.0,
+    2700.0, 20.0, 116.0, 380.0,
+    // fabrica: plataforma de tijolo, blocos de cima, torre e tubos, blocos de baixo
+    1410.0, 450.0, 310.0, 110.0,
+    1720.0, 395.0, 640.0, 165.0,
+    1720.0, 560.0, 520.0, 130.0,
+    2230.0, 560.0, 130.0, 320.0,
+    1678.0, 800.0, 262.0, 370.0,
+    1940.0, 880.0, 455.0, 290.0,
+    // caixa d'agua, muro com cartaz e estacionamento do leste
+    2283.0, 335.0, 75.0, 210.0,
+    2660.0, 465.0, 156.0, 75.0,
+    2585.0, 555.0, 210.0, 260.0,
+    // silos
+    2660.0, 895.0, 156.0, 200.0,
+    // conteineres, galpaozinho e caminhonete no patio central
+    998.0, 515.0, 50.0, 85.0,
+    1045.0, 495.0, 120.0, 125.0,
+    1100.0, 600.0, 185.0, 100.0,
+    1320.0, 570.0, 180.0, 130.0,
+    1950.0, 720.0, 190.0, 60.0,
+    1100.0, 798.0, 130.0, 60.0,
+    1060.0, 938.0, 42.0, 80.0,
+    1100.0, 958.0, 140.0, 60.0,
+    1100.0, 1103.0, 340.0, 255.0,
+    // patio sudoeste: barreiras, empilhadeira, veiculos, conteiner, caminhao
+    770.0, 858.0, 230.0, 40.0,
+    300.0, 898.0, 130.0, 85.0,
+    715.0, 933.0, 85.0, 70.0,
+    585.0, 1000.0, 135.0, 70.0,
+    583.0, 1088.0, 90.0, 80.0,
+    750.0, 1088.0, 210.0, 75.0,
+    // sul: caminhoes na saida, guarita, caminhao e estacionamento
+    1100.0, 1408.0, 200.0, 110.0,
+    1320.0, 1408.0, 160.0, 110.0,
+    1730.0, 1278.0, 120.0, 110.0,
+    1735.0, 1400.0, 115.0, 136.0,
+    1850.0, 1225.0, 300.0, 311.0,
+    // ferro-velho do sudeste
+    2160.0, 1250.0, 656.0, 286.0
+]
+
+// push_out devolve p empurrado para fora de todo retangulo que o circulo de
+// raio r toca. Com o centro fora, sai pela normal do ponto mais proximo (o
+// que da o deslize ao longo da parede); com o centro dentro, pela face mais
+// proxima. Uma passada por quadro basta: o que sobrar sai no quadro seguinte.
+func push_out(p: vec.V, r: float, rects: float[]) -> vec.V
+    let out: vec.V = p
+    for i in range(length(rects) / 4) do
+        let rx: float = rects[i * 4]
+        let ry: float = rects[i * 4 + 1]
+        let rw: float = rects[i * 4 + 2]
+        let rh: float = rects[i * 4 + 3]
+
+        let cx: float = out.x
+        if cx < rx then
+            cx = rx
+        end
+        if cx > rx + rw then
+            cx = rx + rw
+        end
+        let cy: float = out.y
+        if cy < ry then
+            cy = ry
+        end
+        if cy > ry + rh then
+            cy = ry + rh
+        end
+
+        let dx: float = out.x - cx
+        let dy: float = out.y - cy
+        let d2: float = dx * dx + dy * dy
+        if d2 >= r * r then
+            continue
+        end
+        if d2 > vec.EPS then
+            let d: float = vec.sqrt(d2)
+            let push: float = r - d
+            out = vec.V(out.x + dx / d * push, out.y + dy / d * push)
+            continue
+        end
+
+        let left: float = out.x - rx
+        let right: float = rx + rw - out.x
+        let top: float = out.y - ry
+        let bottom: float = ry + rh - out.y
+        let m: float = left
+        if right < m then
+            m = right
+        end
+        if top < m then
+            m = top
+        end
+        if bottom < m then
+            m = bottom
+        end
+        if m == left then
+            out = vec.V(rx - r, out.y)
+        elif m == right then
+            out = vec.V(rx + rw + r, out.y)
+        elif m == top then
+            out = vec.V(out.x, ry - r)
+        else
+            out = vec.V(out.x, ry + rh + r)
+        end
+    end
+    return out
+end
+
+// inside: o ponto esta dentro de algum retangulo (balas).
+func inside(p: vec.V, rects: float[]) -> bool
+    for i in range(length(rects) / 4) do
+        let rx: float = rects[i * 4]
+        let ry: float = rects[i * 4 + 1]
+        if p.x >= rx && p.x <= rx + rects[i * 4 + 2] && p.y >= ry && p.y <= ry + rects[i * 4 + 3] then
+            return true
+        end
+    end
+    return false
+end
+
+// free: o circulo de raio r em p nao toca retangulo nenhum (spawn).
+func free(p: vec.V, r: float, rects: float[]) -> bool
+    let q: vec.V = push_out(p, r, rects)
+    return q.x == p.x && q.y == p.y
+end

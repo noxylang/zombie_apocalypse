@@ -3,11 +3,12 @@
 // o render resolve.
 use src.vec as vec
 
-let ARENA_W = 1600.0
-let ARENA_H = 1200.0
+let ARENA_W = 2816.0           // o tamanho de images/background.jpg, 1:1
+let ARENA_H = 1536.0
 let VIEW_W = 960.0
 let VIEW_H = 640.0
 let PLAYER_R = 12.0
+let START: vec.V = vec.V(1300.0, 850.0)   // ponto de partida: patio de concreto, longe dos conteineres
 
 struct Player
     pos: vec.V,
@@ -66,11 +67,12 @@ struct World
     offers: int[],         // indices dos tres upgrades ofertados
     shake: float,          // intensidade restante da tremida
     time: float,           // segundos de partida
-    since_end: float       // segundos desde o fim da partida; so o desenho usa
+    since_end: float,      // segundos desde o fim da partida; so o desenho usa
+    obstacles: float[]     // retangulos solidos (x, y, w, h); vazio ate arena.nx instalar o mapa
 end
 
 func new_player() -> Player
-    return Player(vec.V(ARENA_W / 2.0, ARENA_H / 2.0), 100.0, 100.0, 220.0, 5.0, 0.0, 10.0, 600.0, 0, 1, 0.0, vec.V(1.0, 0.0), vec.V(0.0, 0.0))
+    return Player(START, 100.0, 100.0, 220.0, 5.0, 0.0, 10.0, 600.0, 0, 1, 0.0, vec.V(1.0, 0.0), vec.V(0.0, 0.0))
 end
 
 func new_world() -> World
@@ -78,5 +80,6 @@ func new_world() -> World
     let bs: Bullet[] = []
     let ps: Particle[] = []
     let of: int[] = []
-    return World(new_player(), es, bs, ps, 0, 0, 0.0, 0, 0, of, 0.0, 0.0, 0.0)
+    let ob: float[] = []
+    return World(new_player(), es, bs, ps, 0, 0, 0.0, 0, 0, of, 0.0, 0.0, 0.0, ob)
 end

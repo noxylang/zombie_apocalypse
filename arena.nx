@@ -5,6 +5,7 @@ use github_com.estevaofon.noxy_game_engine as game
 use src.vec as vec
 use src.world as wld
 use src.flow as flow
+use src.level as level
 use src.render as render
 
 game.init(960, 640, "Noxy Arena")
@@ -12,11 +13,15 @@ game.set_fps(60)
 render.load()
 
 let world: wld.World = wld.new_world()
+world.obstacles = level.OBSTACLES
 flow.begin(ref world)
 
 while game.running() do
     if game.key_pressed("escape") then
         game.stop()
+    end
+    if game.key_pressed("f1") then
+        render.toggle_obstacles()
     end
 
     // um quadro travado nao pode virar um salto: sem o teto, voltar de uma
