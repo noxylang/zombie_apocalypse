@@ -12,6 +12,7 @@ use src.render as render
 
 game.init(960, 640, "smoke")
 game.set_fps(60)
+render.load()
 
 let w: wld.World = wld.new_world()
 flow.begin(ref w)

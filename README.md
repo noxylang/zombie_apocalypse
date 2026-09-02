@@ -3,7 +3,8 @@
 Um arena shooter top-down de oito ondas, escrito em [Noxy](https://github.com/estevaofon/noxy)
 sobre o [noxy_game_engine](https://github.com/estevaofon/noxy_game_engine).
 
-Sem assets: tudo na tela é polígono, círculo e linha.
+Inimigos, balas e cenário são polígonos, círculos e linhas; o jogador é um
+sprite animado (veja "Sprite do jogador").
 
 ## Jogar
 
@@ -43,16 +44,42 @@ vitória.
 
 A simulação — `src/vec`, `src/rng`, `src/world`, `src/combat`, `src/waves`,
 `src/upgrades`, `src/flow` — é aritmética pura sobre um struct `World` e não
-conhece a engine. `src/render` é o único módulo que desenha, e `arena.nx` só
-traduz teclado e mouse em vetores e entrega para `flow.advance`.
+conhece a engine. `src/anim` lê o `World` e escolhe o frame do jogador (linha,
+coluna e espelhamento), também sem engine. `src/render` é o único módulo que
+desenha, e `arena.nx` só traduz teclado e mouse em vetores e entrega para
+`flow.advance`.
 
 Essa separação é o que permite testar o jogo inteiro sem abrir janela:
 
-    noxy tests/run.nx        # 164 asserts sobre a simulação, sem janela
+    noxy tests/run.nx        # 196 asserts sobre a simulação e a animação, sem janela
     noxy tests/smoke.nx      # abre a janela, percorre as 4 telas, sai sozinho
 
 `run.nx` cobre a lógica; `smoke.nx` existe porque erro de comando de desenho
 só aparece quando há uma janela para recusá-lo.
+
+## Sprite do jogador
+
+`images/shooter.png` é a sheet original, gerada no Gemini. Ela não vem numa
+grade regular — frames de larguras diferentes, o flash do cano invadindo a
+célula vizinha e várias linhas misturando vista frontal e lateral — então o
+jogo não a usa direto. `tools/pack_sheet.py` (Python com Pillow) recorta as
+seis linhas coerentes e escreve `images/shooter_sheet.png`, uma animação por
+linha em células de 80×64 com o corpo sempre no centro:
+
+| Linha | Animação | Frames |
+|---|---|---|
+| 0 | parado, de frente | 4 |
+| 1 | andando para baixo | 6 |
+| 2 | andando para cima | 7 |
+| 3 | andando de lado | 6 |
+| 4 | atirando de lado | 7 |
+| 5 | morte | 7 |
+
+A direção do sprite segue a mira, quantizada em quatro; para a esquerda o
+render espelha as linhas de lado. Não há linha de tiro para cima ou para
+baixo, então ali o tiro usa o andar ou o idle. Ao regenerar a sheet no Gemini,
+ajuste `ANIMATIONS` no script se a posição das linhas mudar, rode-o a partir
+da raiz e confira `FRAMES` em `src/anim.nx`.
 
 ## Nota de implementação
 

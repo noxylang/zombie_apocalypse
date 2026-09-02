@@ -9,6 +9,7 @@ use src.render as render
 
 game.init(960, 640, "Noxy Arena")
 game.set_fps(60)
+render.load()
 
 let world: wld.World = wld.new_world()
 flow.begin(ref world)

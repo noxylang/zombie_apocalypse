@@ -1,0 +1,86 @@
+// src/anim.nx — escolhe o frame do jogador. Conhece o layout de
+// images/shooter_sheet.png (gerado por tools/pack_sheet.py) e nada da engine:
+// devolve linha, coluna e espelhamento, e o render so recorta a celula.
+use src.vec as vec
+use src.world as wld
+
+let CELL_W = 80.0
+let CELL_H = 64.0
+
+// linhas da sheet
+let IDLE_DOWN = 0
+let WALK_DOWN = 1
+let WALK_UP = 2
+let WALK_SIDE = 3
+let SHOOT_SIDE = 4
+let DEATH = 5
+let FRAMES: int[] = [4, 6, 7, 6, 7, 7]
+
+struct Pose
+    row: int,
+    col: int,
+    flip: bool,            // espelhado: virado para a esquerda
+    visible: bool          // false nos quadros apagados do pisca
+end
+
+let IDLE_FPS = 4.0
+let WALK_FPS = 10.0
+let SHOOT_FPS = 15.0
+let DEATH_FPS = 10.0
+let BLINK_HZ = 15.0        // trocas de visibilidade por segundo
+
+// frame_at percorre a linha em ciclo: o frame vem do relogio de partida, entao
+// o passo comeca em fase qualquer, mas nao precisa de estado no render.
+func frame_at(row: int, t: float, fps: float) -> int
+    return to_int(t * fps) % FRAMES[row]
+end
+
+// pose le o World e decide o frame. A direcao vem da mira quantizada em
+// quatro: de lado sempre que |x| >= |y|, espelhando para a esquerda; senao de
+// frente ou de costas. Nao ha linha de tiro nem idle para cima e para baixo,
+// entao la o tiro cai no andar/idle e o parado de costas e o frame 0 de andar.
+func pose(w: wld.World) -> Pose
+    let a: vec.V = w.player.aim
+    let ax: float = a.x
+    if ax < 0.0 then
+        ax = -ax
+    end
+    let ay: float = a.y
+    if ay < 0.0 then
+        ay = -ay
+    end
+    let side: bool = ax >= ay
+    let flip: bool = side && a.x < 0.0
+
+    if w.screen == 2 then
+        let f: int = to_int(w.since_end * DEATH_FPS)
+        if f > FRAMES[DEATH] - 1 then
+            f = FRAMES[DEATH] - 1
+        end
+        return Pose(DEATH, f, flip, true)
+    end
+
+    let visible: bool = w.player.invuln <= 0.0 || to_int(w.time * BLINK_HZ) % 2 == 0
+
+    if side then
+        if w.player.fire_cd > 0.0 then
+            return Pose(SHOOT_SIDE, frame_at(SHOOT_SIDE, w.time, SHOOT_FPS), flip, visible)
+        end
+        if w.player.moving then
+            return Pose(WALK_SIDE, frame_at(WALK_SIDE, w.time, WALK_FPS), flip, visible)
+        end
+        return Pose(WALK_SIDE, 0, flip, visible)
+    end
+
+    if a.y < 0.0 then
+        if w.player.moving then
+            return Pose(WALK_UP, frame_at(WALK_UP, w.time, WALK_FPS), false, visible)
+        end
+        return Pose(WALK_UP, 0, false, visible)
+    end
+
+    if w.player.moving then
+        return Pose(WALK_DOWN, frame_at(WALK_DOWN, w.time, WALK_FPS), false, visible)
+    end
+    return Pose(IDLE_DOWN, frame_at(IDLE_DOWN, w.time, IDLE_FPS), false, visible)
+end

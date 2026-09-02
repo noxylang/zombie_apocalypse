@@ -21,7 +21,8 @@ struct Player
     pierce: int,           // inimigos atravessados alem do primeiro
     shots: int,            // 1 = simples, 3 = leque
     invuln: float,         // segundos restantes de invencibilidade
-    aim: vec.V             // unitario; guardado para o desenho
+    aim: vec.V,            // unitario; guardado para o desenho
+    moving: bool           // andou neste quadro; so o desenho usa
 end
 
 struct Enemy
@@ -63,11 +64,12 @@ struct World
     screen: int,           // 0 jogando, 1 upgrade, 2 game over, 3 vitoria
     offers: int[],         // indices dos tres upgrades ofertados
     shake: float,          // intensidade restante da tremida
-    time: float            // segundos de partida
+    time: float,           // segundos de partida
+    since_end: float       // segundos desde o fim da partida; so o desenho usa
 end
 
 func new_player() -> Player
-    return Player(vec.V(ARENA_W / 2.0, ARENA_H / 2.0), 100.0, 100.0, 220.0, 5.0, 0.0, 10.0, 600.0, 0, 1, 0.0, vec.V(1.0, 0.0))
+    return Player(vec.V(ARENA_W / 2.0, ARENA_H / 2.0), 100.0, 100.0, 220.0, 5.0, 0.0, 10.0, 600.0, 0, 1, 0.0, vec.V(1.0, 0.0), false)
 end
 
 func new_world() -> World
@@ -75,5 +77,5 @@ func new_world() -> World
     let bs: Bullet[] = []
     let ps: Particle[] = []
     let of: int[] = []
-    return World(new_player(), es, bs, ps, 0, 0, 0.0, 0, 0, of, 0.0, 0.0)
+    return World(new_player(), es, bs, ps, 0, 0, 0.0, 0, 0, of, 0.0, 0.0, 0.0)
 end

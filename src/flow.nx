@@ -24,6 +24,7 @@ func reset(w: ref wld.World) -> void
     w.offers = fresh.offers
     w.shake = 0.0
     w.time = 0.0
+    w.since_end = 0.0
     begin(w)
 end
 
@@ -53,6 +54,9 @@ func advance(w: ref wld.World, mv: vec.V, aim: vec.V, shooting: bool, pick: int,
         return
     end
 
+    // o relogio de partida para no fim; since_end e o que a animacao de morte
+    // usa para saber ha quanto tempo o jogador caiu.
+    w.since_end = w.since_end + dt
     if restart then
         reset(w)
     end

@@ -1,19 +1,29 @@
-// src/render.nx — o unico modulo que desenha. Nenhuma forma usa angulo: cada
-// uma e montada a partir da direcao do movimento e da sua perpendicular.
+// src/render.nx — o unico modulo que desenha. Os inimigos sao poligonos
+// montados a partir da direcao do movimento e da sua perpendicular, sem
+// angulo; o jogador e um frame de images/shooter_sheet.png escolhido por
+// src/anim.
 use github_com.estevaofon.noxy_game_engine as game
 use src.vec as vec
 use src.world as wld
 use src.rng as rng
 use src.upgrades as up
 use src.waves as waves
+use src.anim as anim
 
 let BG: game.Color = game.rgb(10, 12, 20)
 let GRID: game.Color = game.rgb(24, 30, 52)
 let WALL: game.Color = game.rgb(70, 84, 130)
-let PLAYER_C: game.Color = game.rgb(90, 220, 255)
-let PLAYER_HURT: game.Color = game.rgb(255, 255, 255)
 let BULLET_C: game.Color = game.rgb(255, 244, 180)
 let GRID_STEP = 80.0
+let PLAYER_SCALE = 1.0
+
+let sheet: game.Image = game.Image(0, 0, 0)
+
+// load carrega a sheet do jogador. Tem de vir depois de game.init: a engine
+// recusa load_image antes de a janela existir.
+func load() -> void
+    sheet = game.load_image("images/shooter_sheet.png")
+end
 
 func kind_color(k: int) -> game.Color
     if k == 1 then
@@ -68,20 +78,18 @@ func draw_grid(cam: vec.V) -> void
     end
 end
 
+// draw_player centra a celula da sheet na posicao do jogador; o corpo esta
+// centrado na celula, entao o circulo de colisao fica no tronco.
 func draw_player(w: wld.World) -> void
-    let d: vec.V = w.player.aim
-    let p: vec.V = vec.perp(d)
-    let c: vec.V = w.player.pos
-    let pts: float[] = [
-        c.x + d.x * 18.0, c.y + d.y * 18.0,
-        c.x - d.x * 8.0 + p.x * 11.0, c.y - d.y * 8.0 + p.y * 11.0,
-        c.x - d.x * 8.0 - p.x * 11.0, c.y - d.y * 8.0 - p.y * 11.0
-    ]
-    let col: game.Color = PLAYER_C
-    if w.player.invuln > 0.0 then
-        col = PLAYER_HURT
+    let p: anim.Pose = anim.pose(w)
+    if !p.visible then
+        return
     end
-    game.draw_polygon(pts, col)
+    let sx: float = to_float(p.col) * anim.CELL_W
+    let sy: float = to_float(p.row) * anim.CELL_H
+    let x: float = w.player.pos.x - anim.CELL_W * PLAYER_SCALE / 2.0
+    let y: float = w.player.pos.y - anim.CELL_H * PLAYER_SCALE / 2.0
+    game.draw_image_sub_ex(sheet, sx, sy, anim.CELL_W, anim.CELL_H, x, y, PLAYER_SCALE, 0.0, 1.0, p.flip)
 end
 
 func draw_enemy(e: wld.Enemy) -> void
