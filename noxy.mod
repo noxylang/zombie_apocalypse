@@ -1,4 +1,4 @@
-module my_noxy_game
+module deadrail
 
 noxy v0.23.2
 

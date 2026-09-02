@@ -68,7 +68,7 @@ struct World
     shake: float,          // intensidade restante da tremida
     time: float,           // segundos de partida
     since_end: float,      // segundos desde o fim da partida; so o desenho usa
-    obstacles: float[]     // retangulos solidos (x, y, w, h); vazio ate arena.nx instalar o mapa
+    obstacles: float[]     // retangulos solidos (x, y, w, h); vazio ate deadrail.nx instalar o mapa
 end
 
 func new_player() -> Player

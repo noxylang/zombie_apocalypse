@@ -285,7 +285,7 @@ func update_particles(w: ref wld.World, dt: float) -> void
     w.particles = keep
 end
 
-// step fixa a ordem do quadro. arena.nx nao chama mais nada enquanto se joga.
+// step fixa a ordem do quadro. deadrail.nx nao chama mais nada enquanto se joga.
 func step(w: ref wld.World, mv: vec.V, aim: vec.V, shooting: bool, dt: float) -> void
     move_player(w, mv, aim, dt)
     if shooting then

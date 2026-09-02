@@ -1,7 +1,8 @@
-# Noxy Arena
+# Deadrail
 
-Um arena shooter top-down de oito ondas, escrito em [Noxy](https://github.com/estevaofon/noxy)
-sobre o [noxy_game_engine](https://github.com/estevaofon/noxy_game_engine).
+Um shooter top-down de oito ondas num pátio ferroviário abandonado, escrito
+em [Noxy](https://github.com/estevaofon/noxy) sobre o
+[noxy_game_engine](https://github.com/estevaofon/noxy_game_engine).
 
 O chão é um mapa desenhado (veja "Mapa e colisão"); jogador e inimigos são
 sprites animados (veja "Sprites"); balas, partículas e HUD são linhas,
@@ -9,7 +10,7 @@ círculos e retângulos.
 
 ## Jogar
 
-    noxy arena.nx
+    noxy deadrail.nx
 
 A partir da raiz do projeto — os módulos são resolvidos a partir do diretório
 de trabalho, não do arquivo.
@@ -48,7 +49,7 @@ A simulação — `src/vec`, `src/rng`, `src/world`, `src/level`, `src/combat`,
 `src/waves`, `src/upgrades`, `src/flow` — é aritmética pura sobre um struct
 `World` e não conhece a engine. `src/anim` lê o `World` e escolhe o frame do jogador (linha,
 coluna e espelhamento), também sem engine. `src/render` é o único módulo que
-desenha, e `arena.nx` só traduz teclado e mouse em vetores e entrega para
+desenha, e `deadrail.nx` só traduz teclado e mouse em vetores e entrega para
 `flow.advance`.
 
 Essa separação é o que permite testar o jogo inteiro sem abrir janela:
@@ -73,7 +74,7 @@ encalham. Miudezas como caixotes, barris e pneus também ficam de fora.
 Jogador e inimigos são empurrados para fora dos retângulos depois de andar
 (`level.push_out`), o que dá o deslize ao longo das paredes; balas morrem ao
 entrar num retângulo; o spawn na borda re-sorteia até cair em ponto livre.
-`World.obstacles` começa vazio — `arena.nx` instala `level.OBSTACLES`, e os
+`World.obstacles` começa vazio — `deadrail.nx` instala `level.OBSTACLES`, e os
 testes usam retângulos próprios. O ponto de partida é `world.START`.
 
 Aperte F1 no jogo para ver os retângulos sobre o mapa. Para ajustar um, mude

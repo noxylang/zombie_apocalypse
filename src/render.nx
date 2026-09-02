@@ -1,7 +1,7 @@
 // src/render.nx — o unico modulo que desenha. O chao e images/background.jpg
 // em escala 1:1 com a arena; jogador e inimigos sao frames das sheets em
 // images/, escolhidos por src/anim; balas, particulas e HUD sao linha,
-// circulo e retangulo. F1 (arena.nx) liga o overlay dos obstaculos.
+// circulo e retangulo. F1 (deadrail.nx) liga o overlay dos obstaculos.
 use github_com.estevaofon.noxy_game_engine as game
 use src.vec as vec
 use src.world as wld
@@ -47,7 +47,7 @@ func kind_color(k: int) -> game.Color
 end
 
 // camera_base e a camera de verdade: centrada no jogador e travada na arena.
-// arena.nx usa esta para converter o mouse em coordenadas de mundo.
+// deadrail.nx usa esta para converter o mouse em coordenadas de mundo.
 func camera_base(w: wld.World) -> vec.V
     let cx: float = w.player.pos.x - wld.VIEW_W / 2.0
     let cy: float = w.player.pos.y - wld.VIEW_H / 2.0

@@ -1,4 +1,4 @@
-// arena.nx — janela, loop e input. Nenhuma regra de jogo mora aqui: tudo o
+// deadrail.nx — janela, loop e input. Nenhuma regra de jogo mora aqui: tudo o
 // que este arquivo faz e traduzir teclado e mouse em vetores e numeros, e
 // entregar para flow.advance.
 use github_com.estevaofon.noxy_game_engine as game
@@ -8,7 +8,7 @@ use src.flow as flow
 use src.level as level
 use src.render as render
 
-game.init(960, 640, "Noxy Arena")
+game.init(960, 640, "Deadrail")
 game.set_fps(60)
 render.load()
 

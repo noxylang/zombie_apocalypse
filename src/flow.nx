@@ -1,6 +1,6 @@
 // src/flow.nx — a maquina de telas: o que acontece quando uma onda acaba,
 // quando se escolhe um upgrade e quando se pede para recomecar. Mora num
-// modulo, e nao em arena.nx, para poder ser testada sem abrir janela.
+// modulo, e nao em deadrail.nx, para poder ser testada sem abrir janela.
 use src.vec as vec
 use src.world as wld
 use src.combat as combat
