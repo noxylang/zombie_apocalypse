@@ -28,14 +28,16 @@ CELL_W, CELL_H = 80, 64
 ALPHA_MIN = 20          # abaixo disso e fundo
 MIN_AREA = 6            # pontos soltos menores que isso sao lixo
 
-# (nome, linha na grade de origem, colunas na grade de origem)
+# (nome, linha na grade de origem, colunas na grade de origem, espelhar)
+# Toda linha de lado sai virada para a direita: a unica caminhada lateral
+# coerente da sheet olha para a esquerda, entao e espelhada ao empacotar.
 ANIMATIONS = [
-    ("idle_down",  0, range(0, 4)),
-    ("walk_down",  1, range(0, 6)),
-    ("walk_up",    1, range(7, 14)),
-    ("walk_side",  5, range(7, 13)),
-    ("shoot_side", 2, range(7, 14)),
-    ("death",      7, range(7, 14)),
+    ("idle_down",  0, range(0, 4),  False),
+    ("walk_down",  1, range(0, 6),  False),
+    ("walk_up",    1, range(7, 14), False),
+    ("walk_side",  4, range(0, 6),  True),
+    ("shoot_side", 2, range(7, 14), False),
+    ("death",      7, range(7, 14), False),
 ]
 
 
@@ -114,11 +116,11 @@ def main():
             cells.setdefault(key, set()).update(part)
 
     centers = row_centers(alpha, w, h, pitch_y)
-    max_frames = max(len(cols) for _, _, cols in ANIMATIONS)
+    max_frames = max(len(cols) for _, _, cols, _ in ANIMATIONS)
     dst = Image.new("RGBA", (max_frames * CELL_W, len(ANIMATIONS) * CELL_H), (0, 0, 0, 0))
     out = dst.load()
 
-    for out_row, (name, grid_row, cols) in enumerate(ANIMATIONS):
+    for out_row, (name, grid_row, cols, mirror) in enumerate(ANIMATIONS):
         for out_col, grid_col in enumerate(cols):
             pts = cells.get((grid_row, grid_col))
             if not pts:
@@ -128,14 +130,15 @@ def main():
             # floor(v + 0.5), e nao round(): com o centro em meio pixel,
             # round() arredonda para o par e funde linhas vizinhas.
             dx = int(math.floor(-ax + 0.5))
+            dxm = int(math.floor(ax + 0.5))      # espelhado em volta do centro
             dy = int(math.floor(-ay + 0.5))
             for x, y in pts:
-                ox = out_col * CELL_W + CELL_W // 2 + x + dx
+                ox = out_col * CELL_W + CELL_W // 2 + (dxm - x if mirror else x + dx)
                 oy = out_row * CELL_H + CELL_H // 2 + y + dy
                 if not (out_col * CELL_W <= ox < (out_col + 1) * CELL_W and out_row * CELL_H <= oy < (out_row + 1) * CELL_H):
                     raise SystemExit(f"{name} frame {out_col}: pixel ({x}, {y}) nao cabe na celula")
                 out[ox, oy] = pixels[x, y]
-        print(f"linha {out_row}: {name:<10} {len(cols)} frames")
+        print(f"linha {out_row}: {name:<10} {len(cols)} frames" + (" (espelhada)" if mirror else ""))
 
     dst.save(DST)
     print(f"{DST.relative_to(ROOT)}: {dst.size[0]}x{dst.size[1]}, celulas {CELL_W}x{CELL_H}")

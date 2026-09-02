@@ -75,8 +75,10 @@ linha em células de 80×64 com o corpo sempre no centro:
 | 4 | atirando de lado | 7 |
 | 5 | morte | 7 |
 
-A direção do sprite segue a mira, quantizada em quatro; para a esquerda o
-render espelha as linhas de lado. Não há linha de tiro para cima ou para
+Toda linha de lado fica virada para a direita: a única caminhada lateral
+coerente da sheet olha para a esquerda, então o script a espelha ao
+empacotar. A direção do sprite segue a mira, quantizada em quatro; para a
+esquerda o render espelha as linhas de lado. Não há linha de tiro para cima ou para
 baixo, então ali o tiro usa o andar ou o idle. Ao regenerar a sheet no Gemini,
 ajuste `ANIMATIONS` no script se a posição das linhas mudar, rode-o a partir
 da raiz e confira `FRAMES` em `src/anim.nx`.
