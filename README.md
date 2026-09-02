@@ -140,9 +140,15 @@ consequências moldaram o código:
   montam a partir dela e da sua perpendicular `perp(v) = V(-v.y, v.x)`. O
   leque de tiros gira por uma matriz com seno e cosseno pré-computados.
 
-Outras armadilhas da linguagem, para quem for mexer: retorno de função de
-módulo não infere tipo (`let v: int = rand.random_int(...)`), array literal
-vazio não infere o elemento, variáveis de módulo são somente-leitura de fora,
-e não há remoção de elemento de array — filtrar é reconstruir.
+Outras armadilhas da linguagem, para quem for mexer: chamada de módulo pelo
+namespace não infere tipo (`let v: int = rand.random_int(...)`; com
+`use m select f` infere), `let xs = []` sem anotação não infere o elemento
+(em argumento e em campo de struct o `[]` recebe o tipo do destino),
+variáveis de módulo são somente-leitura de fora, e não há remoção de
+elemento de array por índice — filtrar é reconstruir.
+
+Essas limitações estão registradas, com reprodução e proposta, em
+[estevaofon/noxy#126](https://github.com/estevaofon/noxy/issues/126). Quando
+o Noxy as cobrir, esta nota sai.
 
 O desenho e o design completos estão em `docs/superpowers/`.
