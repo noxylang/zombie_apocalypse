@@ -610,15 +610,15 @@ let DOWN: vec.V = vec.V(0.0, 1.0)
 
 func test_anim() -> void
     print("anim")
-    check("a sheet tem uma contagem de frames por linha", length(anim.FRAMES) == 6)
+    check("a sheet tem uma contagem de frames por linha", length(anim.FRAMES) == 7)
 
     let r: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), STILL, 0.0))
-    check("parado mirando a direita usa o frame 0 de andar de lado", r.row == anim.WALK_SIDE && r.col == 0)
+    check("parado mirando a direita usa o idle lateral", r.row == anim.IDLE_SIDE && r.col == 0)
     check("mirando a direita nao espelha", !r.flip)
     check("sem invencibilidade fica visivel", r.visible)
 
     let l: anim.Pose = anim.pose(posed(vec.V(-1.0, 0.2), STILL, 0.0))
-    check("mirando a esquerda espelha", l.flip && l.row == anim.WALK_SIDE)
+    check("mirando a esquerda espelha", l.flip && l.row == anim.IDLE_SIDE)
 
     let d: anim.Pose = anim.pose(posed(vec.V(0.0, 1.0), STILL, 0.0))
     check("parado mirando para baixo usa o idle frontal", d.row == anim.IDLE_DOWN && !d.flip)
@@ -629,7 +629,7 @@ func test_anim() -> void
     check("parado mirando para cima usa o frame 0 de andar de costas", u.row == anim.WALK_UP && u.col == 0)
 
     let diag_s: anim.Pose = anim.pose(posed(vec.V(1.0, 0.5), STILL, 0.0))
-    check("diagonal mais horizontal vira de lado", diag_s.row == anim.WALK_SIDE)
+    check("diagonal mais horizontal vira de lado", diag_s.row == anim.IDLE_SIDE)
     let diag_d: anim.Pose = anim.pose(posed(vec.V(0.5, 1.0), STILL, 0.0))
     check("diagonal mais vertical vira de frente", diag_d.row == anim.IDLE_DOWN)
 
@@ -640,9 +640,11 @@ func test_anim() -> void
     check("andando de lado usa a linha de andar", ws0.row == anim.WALK_SIDE && ws0.col == 0)
     check("andar avanca o frame a 10 fps", ws1.col == 1)
     check("andar da a volta na linha", wsv.col == 0)
-    // o segundo frame da caminhada lateral da sheet mostra o soldado de costas,
-    // sem o fuzil; na animacao ele parecia virar para o outro lado a cada ciclo.
-    check("andar de lado tem 5 frames: o de costas ficou de fora", anim.FRAMES[anim.WALK_SIDE] == 5)
+    // a caminhada lateral e montada so com frames de vista lateral (linha 7 da
+    // direita): misturar vistas de costas e de frente em 3/4 fazia o soldado
+    // parecer girar a cada ciclo.
+    check("andar de lado tem 4 frames de vista lateral", anim.FRAMES[anim.WALK_SIDE] == 4)
+    check("o idle lateral e um frame so", anim.FRAMES[anim.IDLE_SIDE] == 1)
     check("andando para baixo usa a linha frontal", anim.pose(posed(vec.V(0.0, 1.0), vec.V(0.0, 1.0), 0.0)).row == anim.WALK_DOWN)
     check("andando para cima usa a linha de costas", anim.pose(posed(vec.V(0.0, -1.0), vec.V(0.0, -1.0), 0.0)).row == anim.WALK_UP)
 

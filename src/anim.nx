@@ -14,7 +14,8 @@ let WALK_UP = 2
 let WALK_SIDE = 3
 let SHOOT_SIDE = 4
 let DEATH = 5
-let FRAMES: int[] = [4, 6, 7, 5, 7, 7]
+let IDLE_SIDE = 6
+let FRAMES: int[] = [4, 6, 7, 4, 7, 7, 1]
 
 struct Pose
     row: int,
@@ -79,7 +80,7 @@ func pose(w: wld.World) -> Pose
         if moving then
             return Pose(WALK_SIDE, frame_at(WALK_SIDE, w.time, WALK_FPS), flip, visible)
         end
-        return Pose(WALK_SIDE, 0, flip, visible)
+        return Pose(IDLE_SIDE, 0, flip, visible)
     end
 
     if f.y < 0.0 then

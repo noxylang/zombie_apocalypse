@@ -29,17 +29,19 @@ ALPHA_MIN = 20          # abaixo disso e fundo
 MIN_AREA = 6            # pontos soltos menores que isso sao lixo
 
 # (nome, linha na grade de origem, colunas na grade de origem, espelhar)
-# Toda linha de lado sai virada para a direita: a unica caminhada lateral
-# coerente da sheet olha para a esquerda, entao e espelhada ao empacotar. O
-# seu segundo frame (coluna 1) fica de fora: mostra o soldado de costas, sem
-# o fuzil, e na animacao parecia virar para o outro lado a cada ciclo.
+# Toda linha de lado sai virada para a direita. A caminhada lateral usa so os
+# tres frames de vista lateral da linha 7 da direita (o 5 repetido fecha o
+# ciclo passo largo / pernas juntas): as outras caminhadas da sheet misturam
+# tronco de costas e de frente em 3/4, e a alternancia parecia um giro. O idle
+# lateral e o frame parado da caminhada da esquerda, espelhado.
 ANIMATIONS = [
     ("idle_down",  0, range(0, 4),      False),
     ("walk_down",  1, range(0, 6),      False),
     ("walk_up",    1, range(7, 14),     False),
-    ("walk_side",  4, [0, 2, 3, 4, 5],  True),
+    ("walk_side",  6, [11, 12, 13, 12], False),
     ("shoot_side", 2, range(7, 14),     False),
     ("death",      7, range(7, 14),     False),
+    ("idle_side",  4, [0],              True),
 ]
 
 
