@@ -635,10 +635,14 @@ func test_anim() -> void
 
     let ws0: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.0))
     let ws1: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.15))
-    let ws6: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.65))
+    let volta: float = to_float(anim.FRAMES[anim.WALK_SIDE]) * 0.1 + 0.05
+    let wsv: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), volta))
     check("andando de lado usa a linha de andar", ws0.row == anim.WALK_SIDE && ws0.col == 0)
     check("andar avanca o frame a 10 fps", ws1.col == 1)
-    check("andar da a volta na linha", ws6.col == 0)
+    check("andar da a volta na linha", wsv.col == 0)
+    // o segundo frame da caminhada lateral da sheet mostra o soldado de costas,
+    // sem o fuzil; na animacao ele parecia virar para o outro lado a cada ciclo.
+    check("andar de lado tem 5 frames: o de costas ficou de fora", anim.FRAMES[anim.WALK_SIDE] == 5)
     check("andando para baixo usa a linha frontal", anim.pose(posed(vec.V(0.0, 1.0), vec.V(0.0, 1.0), 0.0)).row == anim.WALK_DOWN)
     check("andando para cima usa a linha de costas", anim.pose(posed(vec.V(0.0, -1.0), vec.V(0.0, -1.0), 0.0)).row == anim.WALK_UP)
 

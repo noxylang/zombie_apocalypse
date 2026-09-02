@@ -30,14 +30,16 @@ MIN_AREA = 6            # pontos soltos menores que isso sao lixo
 
 # (nome, linha na grade de origem, colunas na grade de origem, espelhar)
 # Toda linha de lado sai virada para a direita: a unica caminhada lateral
-# coerente da sheet olha para a esquerda, entao e espelhada ao empacotar.
+# coerente da sheet olha para a esquerda, entao e espelhada ao empacotar. O
+# seu segundo frame (coluna 1) fica de fora: mostra o soldado de costas, sem
+# o fuzil, e na animacao parecia virar para o outro lado a cada ciclo.
 ANIMATIONS = [
-    ("idle_down",  0, range(0, 4),  False),
-    ("walk_down",  1, range(0, 6),  False),
-    ("walk_up",    1, range(7, 14), False),
-    ("walk_side",  4, range(0, 6),  True),
-    ("shoot_side", 2, range(7, 14), False),
-    ("death",      7, range(7, 14), False),
+    ("idle_down",  0, range(0, 4),      False),
+    ("walk_down",  1, range(0, 6),      False),
+    ("walk_up",    1, range(7, 14),     False),
+    ("walk_side",  4, [0, 2, 3, 4, 5],  True),
+    ("shoot_side", 2, range(7, 14),     False),
+    ("death",      7, range(7, 14),     False),
 ]
 
 

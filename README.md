@@ -71,13 +71,14 @@ linha em células de 80×64 com o corpo sempre no centro:
 | 0 | parado, de frente | 4 |
 | 1 | andando para baixo | 6 |
 | 2 | andando para cima | 7 |
-| 3 | andando de lado | 6 |
+| 3 | andando de lado | 5 |
 | 4 | atirando de lado | 7 |
 | 5 | morte | 7 |
 
 Toda linha de lado fica virada para a direita: a única caminhada lateral
 coerente da sheet olha para a esquerda, então o script a espelha ao
-empacotar. Parado ou atirando, o sprite olha para a mira; andando sem atirar, olha
+empacotar, e descarta o seu segundo frame, que mostra o soldado de costas e
+fazia a caminhada parecer um giro a cada ciclo. Parado ou atirando, o sprite olha para a mira; andando sem atirar, olha
 para onde anda (seguir a mira faria o jogador virar para trás ao passar pelo
 cursor, o que acontece fácil onde a câmera trava nas bordas). A direção é
 quantizada em quatro; para a esquerda o render espelha as linhas de lado. Não há linha de tiro para cima ou para
