@@ -38,7 +38,7 @@ end
 // atualiza a mira e faz decair os temporizadores do quadro.
 func move_player(w: ref wld.World, mv: vec.V, aim: vec.V, dt: float) -> void
     let d: vec.V = vec.norm(mv)
-    w.player.moving = d.x != 0.0 || d.y != 0.0
+    w.player.move = d
     w.player.pos.x = w.player.pos.x + d.x * w.player.speed * dt
     w.player.pos.y = w.player.pos.y + d.y * w.player.speed * dt
     clamp_player(w)

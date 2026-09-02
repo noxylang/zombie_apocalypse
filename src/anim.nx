@@ -35,51 +35,61 @@ func frame_at(row: int, t: float, fps: float) -> int
     return to_int(t * fps) % FRAMES[row]
 end
 
-// pose le o World e decide o frame. A direcao vem da mira quantizada em
-// quatro: de lado sempre que |x| >= |y|, espelhando para a esquerda; senao de
-// frente ou de costas. Nao ha linha de tiro nem idle para cima e para baixo,
-// entao la o tiro cai no andar/idle e o parado de costas e o frame 0 de andar.
+// pose le o World e decide o frame. Para onde o sprite olha vem da mira,
+// exceto andando sem atirar, quando vem do passo: a camera trava nas bordas
+// da arena e la o jogador passa pelo cursor com facilidade; seguir a mira
+// faria o sprite virar para tras no meio da caminhada. A direcao e
+// quantizada em quatro: de lado sempre que |x| >= |y|, espelhando para a
+// esquerda; senao de frente ou de costas. Nao ha linha de tiro nem idle para
+// cima e para baixo, entao la o tiro cai no andar/idle e o parado de costas e
+// o frame 0 de andar.
 func pose(w: wld.World) -> Pose
-    let a: vec.V = w.player.aim
-    let ax: float = a.x
-    if ax < 0.0 then
-        ax = -ax
+    let moving: bool = w.player.move.x != 0.0 || w.player.move.y != 0.0
+    let shooting: bool = w.player.fire_cd > 0.0
+
+    let f: vec.V = w.player.aim
+    if moving && !shooting then
+        f = w.player.move
     end
-    let ay: float = a.y
-    if ay < 0.0 then
-        ay = -ay
+    let fx: float = f.x
+    if fx < 0.0 then
+        fx = -fx
     end
-    let side: bool = ax >= ay
-    let flip: bool = side && a.x < 0.0
+    let fy: float = f.y
+    if fy < 0.0 then
+        fy = -fy
+    end
+    let side: bool = fx >= fy
+    let flip: bool = side && f.x < 0.0
 
     if w.screen == 2 then
-        let f: int = to_int(w.since_end * DEATH_FPS)
-        if f > FRAMES[DEATH] - 1 then
-            f = FRAMES[DEATH] - 1
+        let fr: int = to_int(w.since_end * DEATH_FPS)
+        if fr > FRAMES[DEATH] - 1 then
+            fr = FRAMES[DEATH] - 1
         end
-        return Pose(DEATH, f, flip, true)
+        return Pose(DEATH, fr, flip, true)
     end
 
     let visible: bool = w.player.invuln <= 0.0 || to_int(w.time * BLINK_HZ) % 2 == 0
 
     if side then
-        if w.player.fire_cd > 0.0 then
+        if shooting then
             return Pose(SHOOT_SIDE, frame_at(SHOOT_SIDE, w.time, SHOOT_FPS), flip, visible)
         end
-        if w.player.moving then
+        if moving then
             return Pose(WALK_SIDE, frame_at(WALK_SIDE, w.time, WALK_FPS), flip, visible)
         end
         return Pose(WALK_SIDE, 0, flip, visible)
     end
 
-    if a.y < 0.0 then
-        if w.player.moving then
+    if f.y < 0.0 then
+        if moving then
             return Pose(WALK_UP, frame_at(WALK_UP, w.time, WALK_FPS), false, visible)
         end
         return Pose(WALK_UP, 0, false, visible)
     end
 
-    if w.player.moving then
+    if moving then
         return Pose(WALK_DOWN, frame_at(WALK_DOWN, w.time, WALK_FPS), false, visible)
     end
     return Pose(IDLE_DOWN, frame_at(IDLE_DOWN, w.time, IDLE_FPS), false, visible)

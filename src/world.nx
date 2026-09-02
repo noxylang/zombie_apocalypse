@@ -22,7 +22,7 @@ struct Player
     shots: int,            // 1 = simples, 3 = leque
     invuln: float,         // segundos restantes de invencibilidade
     aim: vec.V,            // unitario; guardado para o desenho
-    moving: bool           // andou neste quadro; so o desenho usa
+    move: vec.V            // direcao do passo neste quadro, zero parado; so o desenho usa
 end
 
 struct Enemy
@@ -69,7 +69,7 @@ struct World
 end
 
 func new_player() -> Player
-    return Player(vec.V(ARENA_W / 2.0, ARENA_H / 2.0), 100.0, 100.0, 220.0, 5.0, 0.0, 10.0, 600.0, 0, 1, 0.0, vec.V(1.0, 0.0), false)
+    return Player(vec.V(ARENA_W / 2.0, ARENA_H / 2.0), 100.0, 100.0, 220.0, 5.0, 0.0, 10.0, 600.0, 0, 1, 0.0, vec.V(1.0, 0.0), vec.V(0.0, 0.0))
 end
 
 func new_world() -> World

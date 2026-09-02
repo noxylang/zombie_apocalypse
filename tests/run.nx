@@ -184,10 +184,10 @@ func test_move() -> void
     check("invuln nao fica negativo", t.player.invuln >= 0.0)
 
     let mv: wld.World = wld.new_world()
-    combat.move_player(ref mv, vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.016)
-    check("andar marca o jogador como em movimento", mv.player.moving)
+    combat.move_player(ref mv, vec.V(3.0, 0.0), vec.V(1.0, 0.0), 0.016)
+    check("andar guarda a direcao do passo, unitaria", mv.player.move.x == 1.0 && mv.player.move.y == 0.0)
     combat.move_player(ref mv, vec.V(0.0, 0.0), vec.V(1.0, 0.0), 0.016)
-    check("parar desmarca o movimento", !mv.player.moving)
+    check("parar zera o passo", mv.player.move.x == 0.0 && mv.player.move.y == 0.0)
     check("tremida nao fica negativa", t.shake >= 0.0)
 end
 
@@ -592,68 +592,75 @@ func test_flow() -> void
     check("reiniciar e ignorado durante o jogo", j.kills == 7 && j.screen == 0)
 end
 
-// posed monta um mundo parado no tempo t, mirando em aim, para ler a pose.
-func posed(aim: vec.V, moving: bool, t: float) -> wld.World
+// posed monta um mundo no tempo t, mirando em aim e andando em mv (zero para
+// parado), para ler a pose.
+func posed(aim: vec.V, mv: vec.V, t: float) -> wld.World
     let w: wld.World = wld.new_world()
     w.player.aim = vec.norm(aim)
-    w.player.moving = moving
+    w.player.move = vec.norm(mv)
     w.time = t
     return w
 end
+
+let STILL: vec.V = vec.V(0.0, 0.0)
+let RIGHT: vec.V = vec.V(1.0, 0.0)
+let LEFT: vec.V = vec.V(-1.0, 0.0)
+let UP: vec.V = vec.V(0.0, -1.0)
+let DOWN: vec.V = vec.V(0.0, 1.0)
 
 func test_anim() -> void
     print("anim")
     check("a sheet tem uma contagem de frames por linha", length(anim.FRAMES) == 6)
 
-    let r: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), false, 0.0))
+    let r: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), STILL, 0.0))
     check("parado mirando a direita usa o frame 0 de andar de lado", r.row == anim.WALK_SIDE && r.col == 0)
     check("mirando a direita nao espelha", !r.flip)
     check("sem invencibilidade fica visivel", r.visible)
 
-    let l: anim.Pose = anim.pose(posed(vec.V(-1.0, 0.2), false, 0.0))
+    let l: anim.Pose = anim.pose(posed(vec.V(-1.0, 0.2), STILL, 0.0))
     check("mirando a esquerda espelha", l.flip && l.row == anim.WALK_SIDE)
 
-    let d: anim.Pose = anim.pose(posed(vec.V(0.0, 1.0), false, 0.0))
+    let d: anim.Pose = anim.pose(posed(vec.V(0.0, 1.0), STILL, 0.0))
     check("parado mirando para baixo usa o idle frontal", d.row == anim.IDLE_DOWN && !d.flip)
-    let d2: anim.Pose = anim.pose(posed(vec.V(0.0, 1.0), false, 0.3))
+    let d2: anim.Pose = anim.pose(posed(vec.V(0.0, 1.0), STILL, 0.3))
     check("o idle frontal anima a 4 fps", d2.col == 1)
 
-    let u: anim.Pose = anim.pose(posed(vec.V(0.0, -1.0), false, 0.0))
+    let u: anim.Pose = anim.pose(posed(vec.V(0.0, -1.0), STILL, 0.0))
     check("parado mirando para cima usa o frame 0 de andar de costas", u.row == anim.WALK_UP && u.col == 0)
 
-    let diag_s: anim.Pose = anim.pose(posed(vec.V(1.0, 0.5), false, 0.0))
+    let diag_s: anim.Pose = anim.pose(posed(vec.V(1.0, 0.5), STILL, 0.0))
     check("diagonal mais horizontal vira de lado", diag_s.row == anim.WALK_SIDE)
-    let diag_d: anim.Pose = anim.pose(posed(vec.V(0.5, 1.0), false, 0.0))
+    let diag_d: anim.Pose = anim.pose(posed(vec.V(0.5, 1.0), STILL, 0.0))
     check("diagonal mais vertical vira de frente", diag_d.row == anim.IDLE_DOWN)
 
-    let ws0: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), true, 0.0))
-    let ws1: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), true, 0.15))
-    let ws6: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), true, 0.65))
+    let ws0: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.0))
+    let ws1: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.15))
+    let ws6: anim.Pose = anim.pose(posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.65))
     check("andando de lado usa a linha de andar", ws0.row == anim.WALK_SIDE && ws0.col == 0)
     check("andar avanca o frame a 10 fps", ws1.col == 1)
     check("andar da a volta na linha", ws6.col == 0)
-    check("andando para baixo usa a linha frontal", anim.pose(posed(vec.V(0.0, 1.0), true, 0.0)).row == anim.WALK_DOWN)
-    check("andando para cima usa a linha de costas", anim.pose(posed(vec.V(0.0, -1.0), true, 0.0)).row == anim.WALK_UP)
+    check("andando para baixo usa a linha frontal", anim.pose(posed(vec.V(0.0, 1.0), vec.V(0.0, 1.0), 0.0)).row == anim.WALK_DOWN)
+    check("andando para cima usa a linha de costas", anim.pose(posed(vec.V(0.0, -1.0), vec.V(0.0, -1.0), 0.0)).row == anim.WALK_UP)
 
-    let sh: wld.World = posed(vec.V(1.0, 0.0), true, 0.0)
+    let sh: wld.World = posed(vec.V(1.0, 0.0), vec.V(1.0, 0.0), 0.0)
     sh.player.fire_cd = 0.1
     check("atirando de lado usa a linha de tiro, mesmo andando", anim.pose(sh).row == anim.SHOOT_SIDE)
-    let sh2: wld.World = posed(vec.V(-1.0, 0.0), false, 0.2)
+    let sh2: wld.World = posed(vec.V(-1.0, 0.0), STILL, 0.2)
     sh2.player.fire_cd = 0.1
     let p2: anim.Pose = anim.pose(sh2)
     check("tiro anima a 15 fps e espelha para a esquerda", p2.col == 3 && p2.flip)
-    let shd: wld.World = posed(vec.V(0.0, 1.0), false, 0.0)
+    let shd: wld.World = posed(vec.V(0.0, 1.0), STILL, 0.0)
     shd.player.fire_cd = 0.1
     check("atirando para baixo nao ha linha de tiro: fica de frente", anim.pose(shd).row == anim.IDLE_DOWN)
 
-    let b0: wld.World = posed(vec.V(1.0, 0.0), false, 0.0)
+    let b0: wld.World = posed(vec.V(1.0, 0.0), STILL, 0.0)
     b0.player.invuln = 0.5
     check("invencivel no instante 0 fica visivel", anim.pose(b0).visible)
-    let b1: wld.World = posed(vec.V(1.0, 0.0), false, 0.07)
+    let b1: wld.World = posed(vec.V(1.0, 0.0), STILL, 0.07)
     b1.player.invuln = 0.5
     check("invencivel pisca: apagado em 0.07s", !anim.pose(b1).visible)
 
-    let m: wld.World = posed(vec.V(-1.0, 0.0), true, 9.0)
+    let m: wld.World = posed(vec.V(-1.0, 0.0), vec.V(-1.0, 0.0), 9.0)
     m.screen = 2
     m.player.invuln = 0.5
     m.player.fire_cd = 0.1
@@ -666,10 +673,29 @@ func test_anim() -> void
     m.since_end = 5.0
     check("a morte segura o ultimo frame", anim.pose(m).col == 6)
 
-    let v: wld.World = posed(vec.V(0.0, 1.0), false, 0.0)
+    let v: wld.World = posed(vec.V(0.0, 1.0), STILL, 0.0)
     v.screen = 3
     v.since_end = 5.0
     check("na vitoria o jogador fica parado, nao morto", anim.pose(v).row == anim.IDLE_DOWN)
+
+    // andando sem atirar, o passo manda na direcao; a mira so manda parado ou
+    // atirando. Sem isso, passar pelo cursor vira o sprite para tras.
+    let wr: anim.Pose = anim.pose(posed(LEFT, RIGHT, 0.0))
+    check("andando para a direita com a mira atras olha para a direita", wr.row == anim.WALK_SIDE && !wr.flip)
+    let wl: anim.Pose = anim.pose(posed(RIGHT, LEFT, 0.0))
+    check("andando para a esquerda com a mira atras espelha", wl.row == anim.WALK_SIDE && wl.flip)
+    let wu: anim.Pose = anim.pose(posed(RIGHT, UP, 0.0))
+    check("andando para cima mirando de lado usa andar de costas", wu.row == anim.WALK_UP && !wu.flip)
+    let wd: anim.Pose = anim.pose(posed(UP, DOWN, 0.0))
+    check("andando para baixo mirando para cima usa andar frontal", wd.row == anim.WALK_DOWN)
+    let ws: wld.World = posed(LEFT, RIGHT, 0.0)
+    ws.player.fire_cd = 0.1
+    let wsp: anim.Pose = anim.pose(ws)
+    check("atirando enquanto anda, a mira manda", wsp.row == anim.SHOOT_SIDE && wsp.flip)
+    let wv: wld.World = posed(DOWN, RIGHT, 0.0)
+    wv.player.fire_cd = 0.1
+    let wvp: anim.Pose = anim.pose(wv)
+    check("atirando para baixo enquanto anda de lado usa andar frontal", wvp.row == anim.WALK_DOWN && !wvp.flip)
 end
 
 test_vec()
