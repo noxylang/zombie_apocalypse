@@ -48,14 +48,16 @@ vitória.
 A simulação — `src/vec`, `src/rng`, `src/world`, `src/level`, `src/combat`,
 `src/waves`, `src/upgrades`, `src/flow` — é aritmética pura sobre um struct
 `World` e não conhece a engine. `src/anim` lê o `World` e escolhe o frame do jogador (linha,
-coluna e espelhamento), também sem engine. `src/render` é o único módulo que
-desenha, e `deadrail.nx` só traduz teclado e mouse em vetores e entrega para
-`flow.advance`.
+coluna e espelhamento), também sem engine. `src/editor` é a lógica do editor
+de colisão (seleção, alças, arrastar, desfazer), igualmente sem engine.
+`src/render` é o único módulo que desenha, e os dois pontos de entrada,
+`deadrail.nx` e `editor.nx`, só traduzem teclado e mouse em vetores e
+entregam para `flow.advance` ou para `src/editor`.
 
 Essa separação é o que permite testar o jogo inteiro sem abrir janela:
 
-    noxy tests/run.nx        # 240 asserts sobre a simulação, o mapa e a animação, sem janela
-    noxy tests/smoke.nx      # abre a janela, percorre as 4 telas, sai sozinho
+    noxy tests/run.nx        # 293 asserts sobre a simulação, o mapa, a animação e o editor, sem janela
+    noxy tests/smoke.nx      # abre a janela, percorre as 4 telas e o editor, sai sozinho
 
 `run.nx` cobre a lógica; `smoke.nx` existe porque erro de comando de desenho
 só aparece quando há uma janela para recusá-lo.
@@ -64,22 +66,48 @@ só aparece quando há uma janela para recusá-lo.
 
 `images/background.jpg` é o mapa, gerado no Gemini, desenhado em escala 1:1:
 a arena tem exatamente o tamanho da imagem. Noxy não lê pixels, então os
-obstáculos são dados: `src/level.nx` lista retângulos (x, y, largura, altura)
-traçados à mão sobre a imagem — galpões, prédios, vagões, contêineres,
-veículos, muros e silos. Cercas, portões e a tubulação elevada ficam
-passáveis de propósito: os inimigos perseguem em linha reta e só deslizam em
-parede, e um pátio cercado com um portão viraria uma armadilha onde eles
-encalham. Miudezas como caixotes, barris e pneus também ficam de fora.
+obstáculos são dados: `data/obstacles.txt` lista retângulos, um por linha,
+`x y w h` em pixels da imagem (linhas em branco e `#` são ignoradas) —
+galpões, prédios, vagões, contêineres, veículos, muros e silos. Cercas,
+portões e a tubulação elevada ficam passáveis de propósito: os inimigos
+perseguem em linha reta e só deslizam em parede, e um pátio cercado com um
+portão viraria uma armadilha onde eles encalham. Miudezas como caixotes,
+barris e pneus também ficam de fora.
 
 Jogador e inimigos são empurrados para fora dos retângulos depois de andar
 (`level.push_out`), o que dá o deslize ao longo das paredes; balas morrem ao
 entrar num retângulo; o spawn na borda re-sorteia até cair em ponto livre.
-`World.obstacles` começa vazio — `deadrail.nx` instala `level.OBSTACLES`, e os
-testes usam retângulos próprios. O ponto de partida é `world.START`.
+`World.obstacles` começa vazio — `deadrail.nx` instala o que `level.load`
+leu do arquivo, e os testes usam retângulos próprios. O ponto de partida é
+`world.START`.
 
-Aperte F1 no jogo para ver os retângulos sobre o mapa. Para ajustar um, mude
-os números em `src/level.nx`; o teste `test_map` confere que todos cabem na
-arena e que a partida fica livre.
+Aperte F1 no jogo para ver os retângulos sobre o mapa. Para ajustá-los, abra
+o editor:
+
+    noxy editor.nx
+
+Ele mostra o mapa com os retângulos e o ponto de partida (com o raio do
+jogador), e grava por cima de `data/obstacles.txt`:
+
+| Entrada | Ação |
+|---|---|
+| Arrastar em área vazia | cria um retângulo |
+| Clique num retângulo | seleciona (o menor sob o mouse, para alcançar um aninhado) |
+| Arrastar o selecionado | move |
+| Arrastar uma alça (cantos e lados) | redimensiona |
+| Setas | empurram o selecionado 1 px (Shift: 10 px) |
+| Delete / Backspace | apaga |
+| Ctrl+D | duplica |
+| Ctrl+Z | desfaz |
+| Ctrl+S | salva |
+| W A S D, setas sem seleção, ou botão direito arrastando | câmera (Shift acelera) |
+| Escape | sai; com alteração não salva, avisa e pede um segundo Escape |
+
+Tudo fica em pixels inteiros dentro da arena. Um arquivo faltando ou com
+linha malformada impede o jogo e o editor de abrir, com a linha no erro —
+carregar meio mapa e salvar por cima perderia retângulos. O teste
+`test_level_file` confere que o arquivo carrega, que todos cabem na arena e
+que a partida fica livre.
 
 ## Sprites
 

@@ -1,72 +1,151 @@
 // src/level.nx — o mapa: os obstaculos de images/background.jpg como
-// retangulos (x, y, largura, altura, em pixels do mapa), e a geometria de
-// colisao. Nao conhece a engine. O ponto de partida mora em world.START.
+// retangulos (x, y, largura, altura, em pixels do mapa), lidos e escritos em
+// data/obstacles.txt, e a geometria de colisao. Nao conhece a engine. O
+// ponto de partida mora em world.START.
+use io
+use strings
 use src.vec as vec
 use src.world as wld
 
-// OBSTACLES: quatro floats por retangulo, tracados a mao sobre a imagem
-// (tools/ nao gera isto; F1 no jogo mostra os retangulos). Entram predios,
-// galpoes, vagoes, conteineres, veiculos, muros e silos. Ficam de fora, de
-// proposito: cercas e portoes (os inimigos so deslizam em parede, e um patio
-// cercado viraria armadilha), a tubulacao elevada, e miudezas como caixotes,
-// barris, pneus e paletes.
-let OBSTACLES: float[] = [
-    // trem parado a esquerda (vagoes emendados) e o trem do topo
-    110.0, 165.0, 95.0, 1175.0,
-    750.0, 15.0, 730.0, 85.0,
-    // caminhao batido e vagoes descarrilados junto aos trilhos
-    735.0, 110.0, 170.0, 80.0,
-    1060.0, 118.0, 415.0, 85.0,
-    // galpao de chapa (noroeste) e os muros de tijolo em volta do patio
-    770.0, 185.0, 360.0, 215.0,
-    555.0, 245.0, 215.0, 55.0,
-    555.0, 245.0, 22.0, 155.0,
-    1130.0, 250.0, 340.0, 50.0,
-    1450.0, 250.0, 22.0, 150.0,
-    // galpoes do norte e do canto nordeste
-    1660.0, 0.0, 850.0, 300.0,
-    2520.0, 30.0, 180.0, 270.0,
-    2575.0, 300.0, 125.0, 100.0,
-    2700.0, 20.0, 116.0, 380.0,
-    // fabrica: plataforma de tijolo, blocos de cima, torre e tubos, blocos de baixo
-    1410.0, 450.0, 310.0, 110.0,
-    1720.0, 395.0, 640.0, 165.0,
-    1720.0, 560.0, 520.0, 130.0,
-    2230.0, 560.0, 130.0, 320.0,
-    1678.0, 800.0, 262.0, 370.0,
-    1940.0, 880.0, 455.0, 290.0,
-    // caixa d'agua, muro com cartaz e estacionamento do leste
-    2283.0, 335.0, 75.0, 210.0,
-    2660.0, 465.0, 156.0, 75.0,
-    2585.0, 555.0, 210.0, 260.0,
-    // silos
-    2660.0, 895.0, 156.0, 200.0,
-    // conteineres, galpaozinho e caminhonete no patio central
-    998.0, 515.0, 50.0, 85.0,
-    1045.0, 495.0, 120.0, 125.0,
-    1100.0, 600.0, 185.0, 100.0,
-    1320.0, 570.0, 180.0, 130.0,
-    1950.0, 720.0, 190.0, 60.0,
-    1100.0, 798.0, 130.0, 60.0,
-    1060.0, 938.0, 42.0, 80.0,
-    1100.0, 958.0, 140.0, 60.0,
-    1100.0, 1103.0, 340.0, 255.0,
-    // patio sudoeste: barreiras, empilhadeira, veiculos, conteiner, caminhao
-    770.0, 858.0, 230.0, 40.0,
-    300.0, 898.0, 130.0, 85.0,
-    715.0, 933.0, 85.0, 70.0,
-    585.0, 1000.0, 135.0, 70.0,
-    583.0, 1088.0, 90.0, 80.0,
-    750.0, 1088.0, 210.0, 75.0,
-    // sul: caminhoes na saida, guarita, caminhao e estacionamento
-    1100.0, 1408.0, 200.0, 110.0,
-    1320.0, 1408.0, 160.0, 110.0,
-    1730.0, 1278.0, 120.0, 110.0,
-    1735.0, 1400.0, 115.0, 136.0,
-    1850.0, 1225.0, 300.0, 311.0,
-    // ferro-velho do sudeste
-    2160.0, 1250.0, 656.0, 286.0
-]
+// PATH: um retangulo por linha, "x y w h" em pixels inteiros; linhas vazias
+// e as que comecam com # sao ignoradas. Quem escreve e editor.nx (arraste
+// sobre o mapa); F1 no jogo mostra os retangulos. Entram predios, galpoes,
+// vagoes, conteineres, veiculos, muros e silos. Ficam de fora, de proposito:
+// cercas e portoes (os inimigos so deslizam em parede, e um patio cercado
+// viraria armadilha), a tubulacao elevada, e miudezas como caixotes, barris,
+// pneus e paletes.
+let PATH = "data/obstacles.txt"
+
+// Loaded e o resultado de parse/load. Com ok falso, error diz a linha ou o
+// caminho e rects vem vazio: carregar meio mapa e salvar por cima perderia
+// retangulos, entao quem carrega deve parar.
+struct Loaded
+    rects: float[],
+    ok: bool,
+    error: string
+end
+
+// parse_line le "x y w h" (espacos e tabs a mais nao importam) e devolve os
+// quatro numeros, ou um array vazio se a linha nao tem exatamente quatro
+// inteiros nao negativos com largura e altura positivas.
+func parse_line(s: string) -> float[]
+    let nums: float[] = []
+    let none: float[] = []
+    let tok: string = ""
+    for i in range(length(s) + 1) do
+        let ch: string = " "
+        if i < length(s) then
+            ch = s[i]
+        end
+        if ch == " " || ch == "\t" || ch == "\r" then
+            if length(tok) > 0 then
+                if !strings.is_digit(tok) then
+                    return none
+                end
+                append(ref nums, to_float(to_int(tok)))
+                tok = ""
+            end
+        else
+            tok = tok + ch
+        end
+    end
+    if length(nums) != 4 || nums[2] <= 0.0 || nums[3] <= 0.0 then
+        return none
+    end
+    return nums
+end
+
+// first_char: o primeiro caractere que nao e espaco, ou "" numa linha vazia.
+func first_char(s: string) -> string
+    for i in range(length(s)) do
+        let ch: string = s[i]
+        if ch != " " && ch != "\t" && ch != "\r" then
+            return ch
+        end
+    end
+    return ""
+end
+
+// parse monta os retangulos a partir das linhas do arquivo; a primeira
+// linha malformada encerra com erro.
+func parse(lines: string[]) -> Loaded
+    let rects: float[] = []
+    let empty: float[] = []
+    for i in range(length(lines)) do
+        let s: string = lines[i]
+        let first: string = first_char(s)
+        if first == "" || first == "#" then
+            continue
+        end
+        let r: float[] = parse_line(s)
+        if length(r) == 0 then
+            return Loaded(empty, false, f"linha {i + 1}: esperava x y w h inteiros com lados positivos, veio: {s}")
+        end
+        for k in range(4) do
+            append(ref rects, r[k])
+        end
+    end
+    return Loaded(rects, true, "")
+end
+
+// parse_text: o mesmo sobre o conteudo inteiro; format e parse_text fazem
+// ida e volta.
+func parse_text(text: string) -> Loaded
+    let lines: string[] = []
+    let cur: string = ""
+    for i in range(length(text)) do
+        let ch: string = text[i]
+        if ch == "\n" then
+            append(ref lines, cur)
+            cur = ""
+        else
+            cur = cur + ch
+        end
+    end
+    if length(cur) > 0 then
+        append(ref lines, cur)
+    end
+    return parse(lines)
+end
+
+// format escreve os retangulos como o arquivo: um cabecalho e um por linha.
+func format(rects: float[]) -> string
+    let out: string = "# obstaculos do mapa: x y w h em pixels de images/background.jpg (editor.nx escreve este arquivo)\n"
+    for i in range(length(rects) / 4) do
+        out = out + f"{to_int(rects[i * 4])} {to_int(rects[i * 4 + 1])} {to_int(rects[i * 4 + 2])} {to_int(rects[i * 4 + 3])}\n"
+    end
+    return out
+end
+
+// load le o arquivo; ausente ou malformado dao ok falso com o caminho.
+func load(path: string) -> Loaded
+    let empty: float[] = []
+    let f: io.File = io.open(path, "r")
+    if !f.open then
+        return Loaded(empty, false, f"{path}: nao consegui abrir o mapa")
+    end
+    let r: io.IOLinesResult = io.read_lines(f)
+    io.close(f)
+    if !r.ok then
+        return Loaded(empty, false, f"{path}: {r.error}")
+    end
+    let p: Loaded = parse(r.data)
+    if !p.ok then
+        return Loaded(empty, false, f"{path}: {p.error}")
+    end
+    return p
+end
+
+// save escreve o arquivo inteiro; false se nao deu para abrir.
+func save(path: string, rects: float[]) -> bool
+    let f: io.File = io.open(path, "w")
+    if !f.open then
+        return false
+    end
+    io.write(f, format(rects))
+    io.close(f)
+    return true
+end
 
 // push_out devolve p empurrado para fora de todo retangulo que o circulo de
 // raio r toca. Com o centro fora, sai pela normal do ponto mais proximo (o

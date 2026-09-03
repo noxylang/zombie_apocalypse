@@ -1,0 +1,55 @@
+# trem parado a esquerda (vagoes emendados) e o trem do topo
+110 165 95 1175
+750 15 730 85
+# caminhao batido e vagoes descarrilados junto aos trilhos
+735 110 170 80
+1060 118 415 85
+# galpao de chapa (noroeste) e os muros de tijolo em volta do patio
+770 185 360 215
+555 245 215 55
+555 245 22 155
+1130 250 340 50
+1450 250 22 150
+# galpoes do norte e do canto nordeste
+1660 0 850 300
+2520 30 180 270
+2575 300 125 100
+2700 20 116 380
+# fabrica: plataforma de tijolo, blocos de cima, torre e tubos, blocos de baixo
+1410 450 310 110
+1720 395 640 165
+1720 560 520 130
+2230 560 130 320
+1678 800 262 370
+1940 880 455 290
+# caixa d'agua, muro com cartaz e estacionamento do leste
+2283 335 75 210
+2660 465 156 75
+2585 555 210 260
+# silos
+2660 895 156 200
+# conteineres, galpaozinho e caminhonete no patio central
+998 515 50 85
+1045 495 120 125
+1100 600 185 100
+1320 570 180 130
+1950 720 190 60
+1100 798 130 60
+1060 938 42 80
+1100 958 140 60
+1100 1103 340 255
+# patio sudoeste: barreiras, empilhadeira, veiculos, conteiner, caminhao
+770 858 230 40
+300 898 130 85
+715 933 85 70
+585 1000 135 70
+583 1088 90 80
+750 1088 210 75
+# sul: caminhoes na saida, guarita, caminhao e estacionamento
+1100 1408 200 110
+1320 1408 160 110
+1730 1278 120 110
+1735 1400 115 136
+1850 1225 300 311
+# ferro-velho do sudeste
+2160 1250 656 286

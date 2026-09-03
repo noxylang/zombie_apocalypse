@@ -10,6 +10,9 @@ use src.upgrades as up
 use src.flow as flow
 use src.anim as anim
 use src.level as level
+use src.editor as editor
+use io
+use strings
 
 let fails = 0
 let total = 0
@@ -803,20 +806,204 @@ func test_map() -> void
         end
     end
     check("spawn evita obstaculos", ruim == 0)
+end
 
-    check("o mapa tem obstaculos", length(level.OBSTACLES) > 0 && length(level.OBSTACLES) % 4 == 0)
+func test_level_file() -> void
+    print("level file")
+    let ls: string[] = ["# comentario", "", "110 165 95 1175", "  750   15 730 85  "]
+    let ok: level.Loaded = level.parse(ls)
+    check("parse aceita comentario, linha vazia e espacos extras", ok.ok && length(ok.rects) == 8)
+    check("parse le os quatro numeros", ok.rects[0] == 110.0 && ok.rects[3] == 1175.0 && ok.rects[4] == 750.0 && ok.rects[7] == 85.0)
+
+    let vazio: string[] = []
+    let nada: level.Loaded = level.parse(vazio)
+    check("arquivo vazio e um mapa sem obstaculos", nada.ok && length(nada.rects) == 0)
+
+    let curto: string[] = ["1 2 3"]
+    let c: level.Loaded = level.parse(curto)
+    check("linha com tres numeros e erro", !c.ok && strings.contains(c.error, "linha 1"))
+    let texto: string[] = ["# ok", "1 2 x 4"]
+    let t: level.Loaded = level.parse(texto)
+    check("linha com texto e erro, apontando a linha", !t.ok && strings.contains(t.error, "linha 2"))
+    let neg: string[] = ["10 10 -5 20"]
+    let n: level.Loaded = level.parse(neg)
+    check("lado negativo ou zero e erro", !n.ok)
+
+    let rs: float[] = [110.0, 165.0, 95.0, 1175.0, 750.0, 15.0, 730.0, 85.0]
+    let txt: string = level.format(rs)
+    check("format escreve inteiros, um retangulo por linha", strings.contains(txt, "110 165 95 1175\n750 15 730 85\n"))
+    let volta: level.Loaded = level.parse_text(txt)
+    check("format e parse fazem ida e volta", volta.ok && length(volta.rects) == 8 && volta.rects[6] == 730.0)
+
+    let tmp: string = "data/.teste_obstacles.txt"
+    check("save escreve o arquivo", level.save(tmp, rs))
+    let lido: level.Loaded = level.load(tmp)
+    check("load le o que save escreveu", lido.ok && length(lido.rects) == 8 && lido.rects[1] == 165.0)
+    io.remove(tmp)
+    let sumido: level.Loaded = level.load("data/nao_existe.txt")
+    check("arquivo ausente e erro com o caminho", !sumido.ok && strings.contains(sumido.error, "nao_existe"))
+
+    let mapa: level.Loaded = level.load(level.PATH)
+    check("o mapa do jogo carrega", mapa.ok && length(mapa.rects) > 0 && length(mapa.rects) % 4 == 0)
     let fora = 0
-    for i in range(length(level.OBSTACLES) / 4) do
-        let x: float = level.OBSTACLES[i * 4]
-        let y: float = level.OBSTACLES[i * 4 + 1]
-        let rw: float = level.OBSTACLES[i * 4 + 2]
-        let rh: float = level.OBSTACLES[i * 4 + 3]
+    for i in range(length(mapa.rects) / 4) do
+        let x: float = mapa.rects[i * 4]
+        let y: float = mapa.rects[i * 4 + 1]
+        let rw: float = mapa.rects[i * 4 + 2]
+        let rh: float = mapa.rects[i * 4 + 3]
         if rw <= 0.0 || rh <= 0.0 || x < 0.0 || y < 0.0 || x + rw > wld.ARENA_W || y + rh > wld.ARENA_H then
             fora = fora + 1
         end
     end
     check("todo obstaculo tem tamanho positivo e cabe na arena", fora == 0)
-    check("o ponto de partida fica livre com folga", level.free(wld.START, wld.PLAYER_R + 20.0, level.OBSTACLES))
+    check("o ponto de partida fica livre com folga", level.free(wld.START, wld.PLAYER_R + 20.0, mapa.rects))
+end
+
+func fresh_editor() -> editor.Editor
+    // A = 200x100 em (100, 100); B = 50x30 dentro de A
+    let rs: float[] = [100.0, 100.0, 200.0, 100.0, 150.0, 120.0, 50.0, 30.0]
+    return editor.new_editor(rs, 1000.0, 800.0)
+end
+
+func rect_is(ed: editor.Editor, i: int, x: float, y: float, w: float, h: float) -> bool
+    return ed.rects[i * 4] == x && ed.rects[i * 4 + 1] == y && ed.rects[i * 4 + 2] == w && ed.rects[i * 4 + 3] == h
+end
+
+func test_editor() -> void
+    print("editor")
+    let ed: editor.Editor = fresh_editor()
+    check("pick escolhe o menor retangulo que contem o ponto", editor.pick(ed.rects, 160.0, 130.0) == 1)
+    check("pick acha o grande fora do pequeno", editor.pick(ed.rects, 120.0, 110.0) == 0)
+    check("pick fora de tudo da -1", editor.pick(ed.rects, 500.0, 500.0) == -1)
+
+    check("alca 0 no canto superior esquerdo", editor.handle_at(ed.rects, 0, 100.0, 100.0) == 0)
+    check("alca 1 no meio de cima", editor.handle_at(ed.rects, 0, 200.0, 100.0) == 1)
+    check("alca 2 no canto superior direito", editor.handle_at(ed.rects, 0, 300.0, 100.0) == 2)
+    check("alca 3 no meio da direita", editor.handle_at(ed.rects, 0, 300.0, 150.0) == 3)
+    check("alca 4 no canto inferior direito", editor.handle_at(ed.rects, 0, 300.0, 200.0) == 4)
+    check("alca 5 no meio de baixo", editor.handle_at(ed.rects, 0, 200.0, 200.0) == 5)
+    check("alca 6 no canto inferior esquerdo", editor.handle_at(ed.rects, 0, 100.0, 200.0) == 6)
+    check("alca 7 no meio da esquerda", editor.handle_at(ed.rects, 0, 100.0, 150.0) == 7)
+    check("no centro nao ha alca", editor.handle_at(ed.rects, 0, 200.0, 150.0) == -1)
+    check("a alca pega com tolerancia", editor.handle_at(ed.rects, 0, 305.0, 203.0) == 4)
+    check("sem selecao nao ha alca", editor.handle_at(ed.rects, -1, 100.0, 100.0) == -1)
+
+    // criar por arraste
+    editor.press(ref ed, 400.0, 400.0)
+    check("press em area vazia entra no modo criar", ed.mode == 3)
+    editor.drag(ref ed, 450.0, 430.0)
+    editor.release(ref ed)
+    check("o arraste criou um retangulo novo, selecionado", length(ed.rects) == 12 && ed.sel == 2 && rect_is(ed, 2, 400.0, 400.0, 50.0, 30.0))
+    check("criar marca como nao salvo e entra no desfazer", ed.dirty && length(ed.undo) == 1 && ed.mode == 0)
+
+    let up: editor.Editor = fresh_editor()
+    editor.press(ref up, 500.0, 500.0)
+    editor.drag(ref up, 480.0, 470.0)
+    editor.release(ref up)
+    check("arrastar para cima e para a esquerda normaliza", rect_is(up, 2, 480.0, 470.0, 20.0, 30.0))
+
+    let tiny: editor.Editor = fresh_editor()
+    editor.press(ref tiny, 600.0, 600.0)
+    editor.drag(ref tiny, 602.0, 601.0)
+    editor.release(ref tiny)
+    check("arraste minusculo nao cria nada", length(tiny.rects) == 8 && tiny.sel == -1 && !tiny.dirty && length(tiny.undo) == 0)
+
+    let frac: editor.Editor = fresh_editor()
+    editor.press(ref frac, 400.4, 400.6)
+    editor.drag(ref frac, 450.3, 430.7)
+    editor.release(ref frac)
+    check("coordenadas sao arredondadas para inteiros", rect_is(frac, 2, 400.0, 401.0, 50.0, 30.0))
+
+    // mover
+    let mv: editor.Editor = fresh_editor()
+    editor.press(ref mv, 120.0, 110.0)
+    check("press dentro seleciona e entra no modo mover", mv.sel == 0 && mv.mode == 1)
+    editor.drag(ref mv, 130.0, 115.0)
+    check("mover desloca pelo delta do mouse", rect_is(mv, 0, 110.0, 105.0, 200.0, 100.0))
+    editor.drag(ref mv, -500.0, -500.0)
+    check("mover nao sai da arena pela esquerda", rect_is(mv, 0, 0.0, 0.0, 200.0, 100.0))
+    editor.drag(ref mv, 5000.0, 5000.0)
+    check("mover nao sai da arena pela direita", rect_is(mv, 0, 800.0, 700.0, 200.0, 100.0))
+    editor.release(ref mv)
+    check("mover marca como nao salvo e guarda um desfazer", mv.dirty && length(mv.undo) == 1)
+
+    let click: editor.Editor = fresh_editor()
+    editor.press(ref click, 120.0, 110.0)
+    editor.release(ref click)
+    check("clique sem arrastar so seleciona: nada a desfazer", click.sel == 0 && !click.dirty && length(click.undo) == 0)
+    editor.press(ref click, 700.0, 700.0)
+    editor.release(ref click)
+    check("clique em area vazia limpa a selecao", click.sel == -1 && length(click.rects) == 8)
+
+    // redimensionar
+    let rz: editor.Editor = fresh_editor()
+    rz.sel = 0
+    editor.press(ref rz, 300.0, 150.0)
+    check("press numa alca entra no modo redimensionar", rz.mode == 2 && rz.handle == 3)
+    editor.drag(ref rz, 340.0, 150.0)
+    editor.release(ref rz)
+    check("alca da direita estica a largura", rect_is(rz, 0, 100.0, 100.0, 240.0, 100.0))
+
+    let fl: editor.Editor = fresh_editor()
+    fl.sel = 0
+    editor.press(ref fl, 100.0, 150.0)
+    editor.drag(ref fl, 350.0, 150.0)
+    editor.release(ref fl)
+    check("passar do lado oposto inverte em vez de ficar negativo", rect_is(fl, 0, 300.0, 100.0, 50.0, 100.0))
+
+    let nw: editor.Editor = fresh_editor()
+    nw.sel = 0
+    editor.press(ref nw, 100.0, 100.0)
+    editor.drag(ref nw, 90.0, 80.0)
+    editor.release(ref nw)
+    check("canto superior esquerdo move dois lados", rect_is(nw, 0, 90.0, 80.0, 210.0, 120.0))
+
+    let zero: editor.Editor = fresh_editor()
+    zero.sel = 0
+    editor.press(ref zero, 300.0, 150.0)
+    editor.drag(ref zero, 100.0, 150.0)
+    editor.release(ref zero)
+    check("encolher a nada restaura o retangulo", rect_is(zero, 0, 100.0, 100.0, 200.0, 100.0) && length(zero.undo) == 0)
+
+    let lim: editor.Editor = fresh_editor()
+    lim.sel = 0
+    editor.press(ref lim, 300.0, 200.0)
+    editor.drag(ref lim, 2000.0, 2000.0)
+    editor.release(ref lim)
+    check("redimensionar para na borda da arena", rect_is(lim, 0, 100.0, 100.0, 900.0, 700.0))
+
+    // apagar, duplicar, empurrar, desfazer
+    let del: editor.Editor = fresh_editor()
+    del.sel = 1
+    editor.delete_sel(ref del)
+    check("apagar remove o selecionado", length(del.rects) == 4 && del.sel == -1 && del.dirty && rect_is(del, 0, 100.0, 100.0, 200.0, 100.0))
+    editor.delete_sel(ref del)
+    check("apagar sem selecao nao faz nada", length(del.rects) == 4 && length(del.undo) == 1)
+
+    let dup: editor.Editor = fresh_editor()
+    dup.sel = 0
+    editor.duplicate_sel(ref dup)
+    check("duplicar copia deslocado e seleciona a copia", length(dup.rects) == 12 && dup.sel == 2 && rect_is(dup, 2, 116.0, 116.0, 200.0, 100.0))
+
+    let nd: editor.Editor = fresh_editor()
+    nd.sel = 1
+    editor.nudge(ref nd, 1.0, 0.0)
+    check("empurrar move um pixel", rect_is(nd, 1, 151.0, 120.0, 50.0, 30.0))
+    editor.nudge(ref nd, -1000.0, 0.0)
+    check("empurrar respeita a arena", rect_is(nd, 1, 0.0, 120.0, 50.0, 30.0))
+    check("empurrar guarda um desfazer por passo", length(nd.undo) == 2)
+    editor.undo(ref nd)
+    check("desfazer volta um passo", rect_is(nd, 1, 151.0, 120.0, 50.0, 30.0) && length(nd.undo) == 1)
+    editor.undo(ref nd)
+    editor.undo(ref nd)
+    check("desfazer com a pilha vazia nao quebra", rect_is(nd, 1, 150.0, 120.0, 50.0, 30.0) && length(nd.undo) == 0)
+
+    let un: editor.Editor = fresh_editor()
+    editor.press(ref un, 400.0, 400.0)
+    editor.drag(ref un, 450.0, 430.0)
+    editor.release(ref un)
+    editor.undo(ref un)
+    check("desfazer uma criacao remove o retangulo", length(un.rects) == 8 && un.sel == -1)
 end
 
 test_vec()
@@ -832,4 +1019,6 @@ test_flow()
 test_anim()
 test_enemy_anim()
 test_map()
+test_level_file()
+test_editor()
 report()

@@ -1,6 +1,7 @@
 // deadrail.nx — janela, loop e input. Nenhuma regra de jogo mora aqui: tudo o
 // que este arquivo faz e traduzir teclado e mouse em vetores e numeros, e
 // entregar para flow.advance.
+use sys
 use github_com.estevaofon.noxy_game_engine as game
 use src.vec as vec
 use src.world as wld
@@ -8,12 +9,19 @@ use src.flow as flow
 use src.level as level
 use src.render as render
 
+// o mapa vem de data/obstacles.txt (editor.nx escreve); sem ele nao ha jogo
+let loaded: level.Loaded = level.load(level.PATH)
+if !loaded.ok then
+    print(loaded.error)
+    sys.exit(1)
+end
+
 game.init(960, 640, "Deadrail")
 game.set_fps(60)
 render.load()
 
 let world: wld.World = wld.new_world()
-world.obstacles = level.OBSTACLES
+world.obstacles = loaded.rects
 flow.begin(ref world)
 
 while game.running() do

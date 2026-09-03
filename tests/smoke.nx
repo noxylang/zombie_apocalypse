@@ -1,6 +1,8 @@
 // tests/smoke.nx — abre a janela e percorre o caminho de desenho de verdade:
 // jogo com os tres tipos de inimigo em cena, e depois cada um dos tres
-// paineis. Pega erro de quadro que os testes sem janela nao alcancam.
+// paineis, e o quadro do editor de colisao. Pega erro de quadro que os
+// testes sem janela nao alcancam.
+use sys
 use github_com.estevaofon.noxy_game_engine as game
 use src.vec as vec
 use src.world as wld
@@ -9,14 +11,21 @@ use src.waves as waves
 use src.upgrades as up
 use src.flow as flow
 use src.level as level
+use src.editor as editor
 use src.render as render
+
+let loaded: level.Loaded = level.load(level.PATH)
+if !loaded.ok then
+    print(loaded.error)
+    sys.exit(1)
+end
 
 game.init(960, 640, "smoke")
 game.set_fps(60)
 render.load()
 
 let w: wld.World = wld.new_world()
-w.obstacles = level.OBSTACLES
+w.obstacles = loaded.rects
 render.toggle_obstacles()        // o overlay tambem e caminho de desenho
 flow.begin(ref w)
 w.wave = 6
@@ -46,5 +55,17 @@ for t in range(length(telas)) do
     print(f"  tela '{nomes[t]}' desenhada")
 end
 
+// o editor: um retangulo selecionado (alcas), o ponto de partida e o HUD
+let ed: editor.Editor = editor.new_editor(w.obstacles, wld.ARENA_W, wld.ARENA_H)
+ed.sel = 0
+ed.dirty = true
+let cam: vec.V = render.clamp_camera(vec.V(wld.START.x - wld.VIEW_W / 2.0, wld.START.y - wld.VIEW_H / 2.0))
+for f in range(20) do
+    render.editor_frame(ed, cam, vec.V(cam.x + 100.0, cam.y + 100.0), "smoke: mensagem de status")
+    game.flip()
+    quadros = quadros + 1
+end
+print("  editor desenhado")
+
 game.quit()
-print(f"smoke ok: {quadros} quadros nas 4 telas, {length(w.enemies)} inimigos, {w.kills} abates")
+print(f"smoke ok: {quadros} quadros nas 4 telas e no editor, {length(w.enemies)} inimigos, {w.kills} abates")

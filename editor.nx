@@ -1,0 +1,169 @@
+// editor.nx — o editor de colisao: abre o mapa com os retangulos de
+// data/obstacles.txt e deixa arrastar para criar, mover e redimensionar.
+// Ctrl+S grava o mesmo arquivo que deadrail.nx carrega. A logica mora em
+// src/editor e o desenho em render.editor_frame; aqui so traduzimos mouse e
+// teclado e movemos a camera.
+//     noxy editor.nx        (a partir da raiz do projeto)
+use sys
+use github_com.estevaofon.noxy_game_engine as game
+use src.vec as vec
+use src.world as wld
+use src.level as level
+use src.editor as editor
+use src.render as render
+
+let PAN_SPEED = 600.0          // px/s da camera com WASD; Shift dobra
+let STATUS_TIME = 3.0          // segundos que uma mensagem fica no rodape
+
+let loaded: level.Loaded = level.load(level.PATH)
+if !loaded.ok then
+    print(loaded.error)
+    sys.exit(1)
+end
+
+game.init(960, 640, "Deadrail - editor de colisao")
+game.set_fps(60)
+render.load()
+
+let ed: editor.Editor = editor.new_editor(loaded.rects, wld.ARENA_W, wld.ARENA_H)
+let cam: vec.V = render.clamp_camera(vec.V(wld.START.x - wld.VIEW_W / 2.0, wld.START.y - wld.VIEW_H / 2.0))
+let status: string = ""
+let status_left: float = 0.0
+let confirm_quit: bool = false      // ja avisou que ha alteracao nao salva
+let was_down: bool = false          // botao esquerdo no quadro anterior
+let last_mx: int = 0
+let last_my: int = 0
+
+func say(msg: string) -> void
+    status = msg
+    status_left = STATUS_TIME
+end
+
+while game.running() do
+    let dt: float = game.delta()
+    if dt > 0.05 then
+        dt = 0.05
+    end
+    let shift: bool = game.key_down("shift")
+    let ctrl: bool = game.key_down("ctrl")
+
+    // sair: com alteracao nao salva, avisa e so sai no segundo Escape
+    // enquanto o aviso esta na tela
+    if game.key_pressed("escape") then
+        if ed.dirty && !confirm_quit then
+            confirm_quit = true
+            say("ha alteracoes nao salvas: Ctrl+S salva, Escape de novo sai sem salvar")
+        else
+            game.stop()
+        end
+    end
+
+    if ctrl && game.key_pressed("s") then
+        if level.save(level.PATH, ed.rects) then
+            ed.dirty = false
+            say(f"salvo em {level.PATH}: {length(ed.rects) / 4} retangulos")
+        else
+            say(f"nao consegui escrever {level.PATH}")
+        end
+    end
+    if ctrl && game.key_pressed("z") then
+        editor.undo(ref ed)
+    end
+    if ctrl && game.key_pressed("d") then
+        editor.duplicate_sel(ref ed)
+    end
+    if game.key_pressed("delete") || game.key_pressed("backspace") then
+        editor.delete_sel(ref ed)
+    end
+
+    // camera: WASD sempre (menos com Ctrl, que e atalho); setas empurram o
+    // selecionado um pixel por toque (Shift: dez) ou, sem selecao, movem a
+    // camera tambem
+    let px = 0.0
+    let py = 0.0
+    if !ctrl then
+        if game.key_down("a") then
+            px = px - 1.0
+        end
+        if game.key_down("d") then
+            px = px + 1.0
+        end
+        if game.key_down("w") then
+            py = py - 1.0
+        end
+        if game.key_down("s") then
+            py = py + 1.0
+        end
+    end
+    if ed.sel >= 0 then
+        let amt = 1.0
+        if shift then
+            amt = 10.0
+        end
+        if game.key_pressed("left") then
+            editor.nudge(ref ed, -amt, 0.0)
+        end
+        if game.key_pressed("right") then
+            editor.nudge(ref ed, amt, 0.0)
+        end
+        if game.key_pressed("up") then
+            editor.nudge(ref ed, 0.0, -amt)
+        end
+        if game.key_pressed("down") then
+            editor.nudge(ref ed, 0.0, amt)
+        end
+    else
+        if game.key_down("left") then
+            px = px - 1.0
+        end
+        if game.key_down("right") then
+            px = px + 1.0
+        end
+        if game.key_down("up") then
+            py = py - 1.0
+        end
+        if game.key_down("down") then
+            py = py + 1.0
+        end
+    end
+    let step: float = PAN_SPEED * dt
+    if shift then
+        step = step * 2.0
+    end
+    cam = vec.V(cam.x + px * step, cam.y + py * step)
+
+    // botao direito arrasta o mapa
+    let m: game.Point = game.mouse_pos()
+    if game.mouse_down("right") then
+        cam = vec.V(cam.x - to_float(m.x - last_mx), cam.y - to_float(m.y - last_my))
+    end
+    last_mx = m.x
+    last_my = m.y
+    cam = render.clamp_camera(cam)
+
+    // a camera de desenho e inteira, para o mapa nao borrar; o mouse vira
+    // coordenada do mapa por ela
+    let ci: vec.V = vec.V(to_float(to_int(cam.x)), to_float(to_int(cam.y)))
+    let mw: vec.V = vec.V(to_float(m.x) + ci.x, to_float(m.y) + ci.y)
+    let down: bool = game.mouse_down("left")
+    if game.mouse_pressed("left") then
+        editor.press(ref ed, mw.x, mw.y)
+    elif down then
+        editor.drag(ref ed, mw.x, mw.y)
+    elif was_down then
+        editor.release(ref ed)
+    end
+    was_down = down
+
+    if status_left > 0.0 then
+        status_left = status_left - dt
+        if status_left <= 0.0 then
+            status = ""
+            confirm_quit = false
+        end
+    end
+
+    render.editor_frame(ed, ci, mw, status)
+    game.flip()
+end
+game.quit()

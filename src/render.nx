@@ -9,6 +9,7 @@ use src.rng as rng
 use src.upgrades as up
 use src.waves as waves
 use src.anim as anim
+use src.editor as editor
 
 let BG: game.Color = game.rgb(10, 12, 20)
 let WALL: game.Color = game.rgb(70, 84, 130)
@@ -46,11 +47,10 @@ func kind_color(k: int) -> game.Color
     return game.rgb(255, 70, 90)
 end
 
-// camera_base e a camera de verdade: centrada no jogador e travada na arena.
-// deadrail.nx usa esta para converter o mouse em coordenadas de mundo.
-func camera_base(w: wld.World) -> vec.V
-    let cx: float = w.player.pos.x - wld.VIEW_W / 2.0
-    let cy: float = w.player.pos.y - wld.VIEW_H / 2.0
+// clamp_camera trava o canto superior esquerdo da camera dentro da arena.
+func clamp_camera(c: vec.V) -> vec.V
+    let cx: float = c.x
+    let cy: float = c.y
     if cx < 0.0 then
         cx = 0.0
     end
@@ -64,6 +64,12 @@ func camera_base(w: wld.World) -> vec.V
         cy = wld.ARENA_H - wld.VIEW_H
     end
     return vec.V(cx, cy)
+end
+
+// camera_base e a camera de verdade: centrada no jogador e travada na arena.
+// deadrail.nx usa esta para converter o mouse em coordenadas de mundo.
+func camera_base(w: wld.World) -> vec.V
+    return clamp_camera(vec.V(w.player.pos.x - wld.VIEW_W / 2.0, w.player.pos.y - wld.VIEW_H / 2.0))
 end
 
 // camera_shaken e so para desenhar. Se a mira usasse esta, o tiro tremeria
@@ -214,4 +220,76 @@ func frame(w: wld.World) -> void
     elif w.screen >= 2 then
         draw_end(w)
     end
+end
+
+// ---- editor de colisao (editor.nx) ----
+
+let SEL_FILL: game.Color = game.rgba(60, 200, 255, 80)
+let SEL_LINE: game.Color = game.rgba(140, 235, 255, 255)
+let HANDLE_FILL: game.Color = game.rgb(255, 255, 255)
+let START_C: game.Color = game.rgba(120, 240, 180, 220)
+let BAR: game.Color = game.rgba(0, 0, 0, 170)
+
+// editor_frame desenha o mapa como o editor o ve: todos os retangulos, o
+// selecionado em destaque com as oito alcas, o ponto de partida com o raio
+// do jogador, e o HUD com o mouse, o selecionado, a mensagem do momento
+// (`status`, "" sem mensagem) e a ajuda. `cam` e `mouse` em coordenadas do
+// mapa.
+func editor_frame(ed: editor.Editor, cam: vec.V, mouse: vec.V, status: string) -> void
+    game.clear(BG)
+    game.camera_set(cam.x, cam.y)
+    game.draw_image(background, 0.0, 0.0)
+
+    for i in range(length(ed.rects) / 4) do
+        let x: float = ed.rects[i * 4]
+        let y: float = ed.rects[i * 4 + 1]
+        let rw: float = ed.rects[i * 4 + 2]
+        let rh: float = ed.rects[i * 4 + 3]
+        if !game.rect_overlaps(x, y, rw, rh, cam.x, cam.y, wld.VIEW_W, wld.VIEW_H) then
+            continue
+        end
+        if i == ed.sel then
+            game.draw_rect(x, y, rw, rh, SEL_FILL)
+            game.draw_rect_outline(x, y, rw, rh, SEL_LINE, 2.0)
+        else
+            game.draw_rect(x, y, rw, rh, OBSTACLE_FILL)
+            game.draw_rect_outline(x, y, rw, rh, OBSTACLE_LINE, 2.0)
+        end
+    end
+    if ed.sel >= 0 then
+        let half: float = editor.HANDLE / 2.0
+        for h in range(8) do
+            let p: float[] = editor.handle_pos(ed.rects, ed.sel, h)
+            game.draw_rect(p[0] - half, p[1] - half, editor.HANDLE, editor.HANDLE, HANDLE_FILL)
+            game.draw_rect_outline(p[0] - half, p[1] - half, editor.HANDLE, editor.HANDLE, game.BLACK, 1.0)
+        end
+    end
+
+    // o ponto de partida, com o raio do jogador: tem de ficar livre
+    game.draw_circle_outline(wld.START.x, wld.START.y, wld.PLAYER_R, START_C, 2.0)
+    game.draw_line(wld.START.x - 24.0, wld.START.y, wld.START.x + 24.0, wld.START.y, START_C, 1.0)
+    game.draw_line(wld.START.x, wld.START.y - 24.0, wld.START.x, wld.START.y + 24.0, START_C, 1.0)
+    game.camera_reset()
+
+    game.draw_rect(0.0, 0.0, wld.VIEW_W, 48.0, BAR)
+    let flag: string = ""
+    if ed.dirty then
+        flag = "     * nao salvo"
+    end
+    game.draw_text(f"mouse {to_int(mouse.x)}, {to_int(mouse.y)}     retangulos {length(ed.rects) / 4}{flag}", 12.0, 8.0, 16, INK)
+    if ed.sel >= 0 then
+        let sx: int = to_int(ed.rects[ed.sel * 4])
+        let sy: int = to_int(ed.rects[ed.sel * 4 + 1])
+        let sw: int = to_int(ed.rects[ed.sel * 4 + 2])
+        let sh: int = to_int(ed.rects[ed.sel * 4 + 3])
+        game.draw_text(f"selecionado #{ed.sel}:  x {sx}   y {sy}   w {sw}   h {sh}", 12.0, 28.0, 14, GOOD)
+    else
+        game.draw_text("nada selecionado: arraste em area vazia para criar, clique num retangulo para selecionar", 12.0, 28.0, 14, FADE)
+    end
+
+    game.draw_rect(0.0, wld.VIEW_H - 42.0, wld.VIEW_W, 42.0, BAR)
+    if status != "" then
+        game.draw_text(status, 12.0, wld.VIEW_H - 38.0, 14, GOOD)
+    end
+    game.draw_text("WASD / botao direito: camera    setas: empurrar    Del: apagar    Ctrl+D: duplicar    Ctrl+Z: desfazer    Ctrl+S: salvar    Esc: sair", 12.0, wld.VIEW_H - 20.0, 13, FADE)
 end

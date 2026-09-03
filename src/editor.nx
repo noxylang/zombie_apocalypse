@@ -1,0 +1,333 @@
+// src/editor.nx — a logica do editor de colisao (editor.nx): selecao, alcas,
+// arrastar para criar, mover e redimensionar, apagar, duplicar, empurrar e
+// desfazer, sobre a lista plana de retangulos de src/level. Nao conhece a
+// engine: o ponto de entrada traduz o mouse em coordenadas do mapa e chama
+// press, drag e release; render.editor_frame desenha o resultado.
+
+let HANDLE = 8.0        // raio de captura das alcas, em px do mapa
+let MIN = 4.0           // menor lado que um arraste cria ou deixa
+let UNDO_MAX = 100
+let DUP_OFFSET = 16.0
+
+struct Editor
+    rects: float[],        // x, y, w, h por retangulo: inteiros, dentro da arena
+    arena_w: float,
+    arena_h: float,
+    sel: int,              // indice do selecionado, -1 nenhum
+    mode: int,             // 0 parado, 1 movendo, 2 redimensionando, 3 criando
+    handle: int,           // alca arrastada: 0 NO, 1 N, 2 NE, 3 L, 4 SE, 5 S, 6 SO, 7 O
+    ax: float,             // o mouse no press
+    ay: float,
+    ox: float,             // o retangulo selecionado no press
+    oy: float,
+    ow: float,
+    oh: float,
+    undo: float[][],       // estados anteriores de rects, o mais recente por ultimo
+    dirty: bool            // ha alteracao desde o ultimo save
+end
+
+func new_editor(rects: float[], arena_w: float, arena_h: float) -> Editor
+    let hist: float[][] = []
+    return Editor(rects, arena_w, arena_h, -1, 0, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, hist, false)
+end
+
+// snap arredonda para o inteiro mais proximo: retangulo e pixel.
+func snap(v: float) -> float
+    if v < 0.0 then
+        return to_float(to_int(v - 0.5))
+    end
+    return to_float(to_int(v + 0.5))
+end
+
+func clamp(v: float, lo: float, hi: float) -> float
+    if v < lo then
+        return lo
+    end
+    if v > hi then
+        return hi
+    end
+    return v
+end
+
+// pick: o menor retangulo que contem o ponto, para alcancar um aninhado
+// dentro de outro; -1 fora de todos.
+func pick(rects: float[], x: float, y: float) -> int
+    let best = -1
+    let best_area = 0.0
+    for i in range(length(rects) / 4) do
+        let rx: float = rects[i * 4]
+        let ry: float = rects[i * 4 + 1]
+        let rw: float = rects[i * 4 + 2]
+        let rh: float = rects[i * 4 + 3]
+        if x < rx || x > rx + rw || y < ry || y > ry + rh then
+            continue
+        end
+        let area: float = rw * rh
+        if best < 0 || area < best_area then
+            best = i
+            best_area = area
+        end
+    end
+    return best
+end
+
+// handle_pos: onde fica a alca h do retangulo i (0 NO, 1 N, 2 NE, 3 L,
+// 4 SE, 5 S, 6 SO, 7 O), como [x, y]. O render usa para desenha-las.
+func handle_pos(rects: float[], i: int, h: int) -> float[]
+    let rx: float = rects[i * 4]
+    let ry: float = rects[i * 4 + 1]
+    let rw: float = rects[i * 4 + 2]
+    let rh: float = rects[i * 4 + 3]
+    let xs: float[] = [rx, rx + rw / 2.0, rx + rw, rx + rw, rx + rw, rx + rw / 2.0, rx, rx]
+    let ys: float[] = [ry, ry, ry, ry + rh / 2.0, ry + rh, ry + rh, ry + rh, ry + rh / 2.0]
+    let p: float[] = [xs[h], ys[h]]
+    return p
+end
+
+// handle_at: a alca do selecionado sob o ponto, com tolerancia HANDLE; os
+// cantos vencem os lados quando o retangulo e pequeno. -1 sem alca.
+func handle_at(rects: float[], sel: int, x: float, y: float) -> int
+    if sel < 0 || sel * 4 + 3 >= length(rects) then
+        return -1
+    end
+    let order: int[] = [0, 2, 4, 6, 1, 3, 5, 7]
+    for k in range(8) do
+        let h: int = order[k]
+        let p: float[] = handle_pos(rects, sel, h)
+        let dx: float = x - p[0]
+        let dy: float = y - p[1]
+        if dx < 0.0 then
+            dx = -dx
+        end
+        if dy < 0.0 then
+            dy = -dy
+        end
+        if dx <= HANDLE && dy <= HANDLE then
+            return h
+        end
+    end
+    return -1
+end
+
+// push_undo guarda o estado atual antes de uma alteracao; a pilha descarta
+// o mais antigo quando passa de UNDO_MAX.
+func push_undo(ed: ref Editor) -> void
+    if length(ed.undo) >= UNDO_MAX then
+        let keep: float[][] = []
+        for i in range(length(ed.undo)) do
+            if i > 0 then
+                append(ref keep, ed.undo[i])
+            end
+        end
+        ed.undo = keep
+    end
+    append(ref ed.undo, ed.rects)
+end
+
+// undo volta ao estado anterior. A selecao cai, porque o indice pode nao
+// existir mais; dirty fica, porque nao sabemos se voltamos ao que esta salvo.
+func undo(ed: ref Editor) -> void
+    if length(ed.undo) == 0 then
+        return
+    end
+    ed.rects = ed.undo[length(ed.undo) - 1]
+    pop(ref ed.undo)
+    ed.sel = -1
+    ed.mode = 0
+    ed.dirty = true
+end
+
+// set_rect grava o retangulo i pelos dois cantos, normalizado, arredondado
+// e dentro da arena.
+func set_rect(ed: ref Editor, i: int, x0: float, y0: float, x1: float, y1: float) -> void
+    let ax: float = x0
+    let bx: float = x1
+    if bx < ax then
+        ax = x1
+        bx = x0
+    end
+    let ay: float = y0
+    let by: float = y1
+    if by < ay then
+        ay = y1
+        by = y0
+    end
+    ax = snap(clamp(ax, 0.0, ed.arena_w))
+    bx = snap(clamp(bx, 0.0, ed.arena_w))
+    ay = snap(clamp(ay, 0.0, ed.arena_h))
+    by = snap(clamp(by, 0.0, ed.arena_h))
+    ed.rects[i * 4] = ax
+    ed.rects[i * 4 + 1] = ay
+    ed.rects[i * 4 + 2] = bx - ax
+    ed.rects[i * 4 + 3] = by - ay
+end
+
+// move_rect poe o retangulo i em (x, y) sem mudar o tamanho, dentro da arena.
+func move_rect(ed: ref Editor, i: int, x: float, y: float) -> void
+    let w: float = ed.rects[i * 4 + 2]
+    let h: float = ed.rects[i * 4 + 3]
+    ed.rects[i * 4] = snap(clamp(x, 0.0, ed.arena_w - w))
+    ed.rects[i * 4 + 1] = snap(clamp(y, 0.0, ed.arena_h - h))
+end
+
+// remember guarda o selecionado como estava no press, para o arraste ser
+// relativo a ele e para o release saber se algo mudou.
+func remember(ed: ref Editor) -> void
+    ed.ox = ed.rects[ed.sel * 4]
+    ed.oy = ed.rects[ed.sel * 4 + 1]
+    ed.ow = ed.rects[ed.sel * 4 + 2]
+    ed.oh = ed.rects[ed.sel * 4 + 3]
+end
+
+// press: o botao esquerdo desceu em (x, y), em coordenadas do mapa. Numa
+// alca do selecionado comeca a redimensionar; dentro de um retangulo
+// seleciona e comeca a mover; em area vazia comeca a criar um novo.
+func press(ed: ref Editor, x: float, y: float) -> void
+    ed.ax = x
+    ed.ay = y
+    let h: int = handle_at(ed.rects, ed.sel, x, y)
+    if h >= 0 then
+        push_undo(ed)
+        ed.mode = 2
+        ed.handle = h
+        remember(ed)
+        return
+    end
+    let i: int = pick(ed.rects, x, y)
+    if i >= 0 then
+        push_undo(ed)
+        ed.sel = i
+        ed.mode = 1
+        remember(ed)
+        return
+    end
+    push_undo(ed)
+    append(ref ed.rects, snap(x))
+    append(ref ed.rects, snap(y))
+    append(ref ed.rects, 0.0)
+    append(ref ed.rects, 0.0)
+    ed.sel = length(ed.rects) / 4 - 1
+    ed.mode = 3
+    remember(ed)
+end
+
+// drag: o mouse foi para (x, y) com o botao apertado.
+func drag(ed: ref Editor, x: float, y: float) -> void
+    if ed.mode == 0 || ed.sel < 0 then
+        return
+    end
+    let dx: float = x - ed.ax
+    let dy: float = y - ed.ay
+    if ed.mode == 1 then
+        move_rect(ed, ed.sel, ed.ox + dx, ed.oy + dy)
+        return
+    end
+    if ed.mode == 3 then
+        set_rect(ed, ed.sel, ed.ax, ed.ay, x, y)
+        return
+    end
+    let x0: float = ed.ox
+    let y0: float = ed.oy
+    let x1: float = ed.ox + ed.ow
+    let y1: float = ed.oy + ed.oh
+    let h: int = ed.handle
+    if h == 0 || h == 6 || h == 7 then
+        x0 = x0 + dx
+    end
+    if h == 2 || h == 3 || h == 4 then
+        x1 = x1 + dx
+    end
+    if h == 0 || h == 1 || h == 2 then
+        y0 = y0 + dy
+    end
+    if h == 4 || h == 5 || h == 6 then
+        y1 = y1 + dy
+    end
+    set_rect(ed, ed.sel, x0, y0, x1, y1)
+end
+
+// release: o botao soltou. Um clique sem arraste nao entra no desfazer;
+// criar ou encolher abaixo de MIN descarta a alteracao.
+func release(ed: ref Editor) -> void
+    let mode: int = ed.mode
+    ed.mode = 0
+    if mode == 0 || ed.sel < 0 then
+        return
+    end
+    let i: int = ed.sel
+    let w: float = ed.rects[i * 4 + 2]
+    let h: float = ed.rects[i * 4 + 3]
+    if mode == 3 then
+        if w < MIN || h < MIN then
+            pop(ref ed.rects)
+            pop(ref ed.rects)
+            pop(ref ed.rects)
+            pop(ref ed.rects)
+            pop(ref ed.undo)
+            ed.sel = -1
+            return
+        end
+        ed.dirty = true
+        return
+    end
+    if mode == 2 && (w < MIN || h < MIN) then
+        ed.rects[i * 4] = ed.ox
+        ed.rects[i * 4 + 1] = ed.oy
+        ed.rects[i * 4 + 2] = ed.ow
+        ed.rects[i * 4 + 3] = ed.oh
+        pop(ref ed.undo)
+        return
+    end
+    if ed.rects[i * 4] == ed.ox && ed.rects[i * 4 + 1] == ed.oy && w == ed.ow && h == ed.oh then
+        pop(ref ed.undo)
+        return
+    end
+    ed.dirty = true
+end
+
+// delete_sel apaga o selecionado (filtrar e reconstruir).
+func delete_sel(ed: ref Editor) -> void
+    if ed.sel < 0 then
+        return
+    end
+    push_undo(ed)
+    let keep: float[] = []
+    for i in range(length(ed.rects) / 4) do
+        if i != ed.sel then
+            append(ref keep, ed.rects[i * 4])
+            append(ref keep, ed.rects[i * 4 + 1])
+            append(ref keep, ed.rects[i * 4 + 2])
+            append(ref keep, ed.rects[i * 4 + 3])
+        end
+    end
+    ed.rects = keep
+    ed.sel = -1
+    ed.dirty = true
+end
+
+// duplicate_sel copia o selecionado deslocado DUP_OFFSET e seleciona a copia.
+func duplicate_sel(ed: ref Editor) -> void
+    if ed.sel < 0 then
+        return
+    end
+    push_undo(ed)
+    let i: int = ed.sel
+    let w: float = ed.rects[i * 4 + 2]
+    let h: float = ed.rects[i * 4 + 3]
+    append(ref ed.rects, clamp(ed.rects[i * 4] + DUP_OFFSET, 0.0, ed.arena_w - w))
+    append(ref ed.rects, clamp(ed.rects[i * 4 + 1] + DUP_OFFSET, 0.0, ed.arena_h - h))
+    append(ref ed.rects, w)
+    append(ref ed.rects, h)
+    ed.sel = length(ed.rects) / 4 - 1
+    ed.dirty = true
+end
+
+// nudge empurra o selecionado (dx, dy) pixels, dentro da arena.
+func nudge(ed: ref Editor, dx: float, dy: float) -> void
+    if ed.sel < 0 then
+        return
+    end
+    push_undo(ed)
+    move_rect(ed, ed.sel, ed.rects[ed.sel * 4] + dx, ed.rects[ed.sel * 4 + 1] + dy)
+    ed.dirty = true
+end
