@@ -1,6 +1,6 @@
 # Deadrail
 
-Um shooter top-down de oito ondas num pátio ferroviário abandonado, escrito
+Um shooter top-down de vinte ondas num pátio ferroviário abandonado, escrito
 em [Noxy](https://github.com/estevaofon/noxy) sobre o
 [noxy_game_engine](https://github.com/estevaofon/noxy_game_engine).
 
@@ -29,8 +29,10 @@ de trabalho, não do arquivo.
 
 ## O jogo
 
-Oito ondas num pátio industrial de 2816×1536, com a câmera seguindo o
-jogador. A onda `n` traz `4 + 3n` inimigos, que entram pelas bordas:
+Vinte ondas num pátio industrial de 2816×1536, com a câmera seguindo o
+jogador. A onda `n` traz `4 + 3n + n²/8` inimigos (7 na primeira, 36 na
+oitava, 114 na vigésima), que entram pelas bordas, nunca mais de 60 em
+campo ao mesmo tempo:
 
 | Inimigo | Sprite | Velocidade | Vida | Contato |
 |---|---|---|---|---|
@@ -38,10 +40,11 @@ jogador. A onda `n` traz `4 + 3n` inimigos, que entram pelas bordas:
 | Rusher | soldado mascarado correndo | 170 | 10 | 8 |
 | Tank | zumbi soldado, maior | 55 | 60 | 20 |
 
-Chasers vêm sozinhos na onda 1, rushers entram na 2, tanks na 4. Ao limpar
-uma onda você escolhe um de três upgrades sorteados entre cadência, dano,
-velocidade, blindagem, leque triplo e perfuração. Sobreviver às oito é a
-vitória.
+Chasers vêm sozinhos na onda 1, rushers entram na 2, tanks na 4, e a fatia
+de tanks cresce dois pontos por onda, de 25% na 4 até 45% da 14 em diante.
+Ao limpar uma onda você escolhe um de três upgrades sorteados entre
+cadência, dano, velocidade, blindagem, leque triplo e perfuração. Sobreviver
+às vinte é a vitória.
 
 ## Como está organizado
 
@@ -56,7 +59,7 @@ entregam para `flow.advance` ou para `src/editor`.
 
 Essa separação é o que permite testar o jogo inteiro sem abrir janela:
 
-    noxy tests/run.nx        # 293 asserts sobre a simulação, o mapa, a animação e o editor, sem janela
+    noxy tests/run.nx        # 299 asserts sobre a simulação, o mapa, a animação e o editor, sem janela
     noxy tests/smoke.nx      # abre a janela, percorre as 4 telas e o editor, sai sozinho
 
 `run.nx` cobre a lógica; `smoke.nx` existe porque erro de comando de desenho

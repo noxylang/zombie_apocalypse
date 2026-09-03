@@ -203,7 +203,7 @@ func draw_end(w: wld.World) -> void
     game.draw_rect(0.0, 0.0, wld.VIEW_W, wld.VIEW_H, DIM)
     if w.screen == 3 then
         centered("Vitoria", 190.0, 48, GOOD)
-        centered("As oito ondas cairam", 252.0, 20, INK)
+        centered(f"As {waves.TOTAL} ondas cairam", 252.0, 20, INK)
     else
         centered("Voce morreu", 190.0, 48, BAD)
         centered(f"na onda {w.wave} de {waves.TOTAL}", 252.0, 20, INK)

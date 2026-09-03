@@ -369,9 +369,17 @@ end
 
 func test_waves() -> void
     print("waves")
-    check("oito ondas", waves.TOTAL == 8)
+    check("vinte ondas", waves.TOTAL == 20)
     check("onda 1 tem 7 inimigos", waves.wave_size(1) == 7)
-    check("onda 8 tem 28 inimigos", waves.wave_size(8) == 28)
+    check("onda 8 tem 36 inimigos", waves.wave_size(8) == 36)
+    check("onda 20 tem 114 inimigos", waves.wave_size(20) == 114)
+    let cresce = true
+    for n in range(1, waves.TOTAL) do
+        if waves.wave_size(n + 1) <= waves.wave_size(n) then
+            cresce = false
+        end
+    end
+    check("cada onda traz mais inimigos que a anterior", cresce)
 
     let w: wld.World = wld.new_world()
     waves.start_wave(ref w, 3)
@@ -410,6 +418,30 @@ func test_waves() -> void
         end
     end
     check("tanks aparecem na onda 6", viu_tank)
+
+    check("fatia de tanks: 0 antes da onda 4, 25 na 4, 45 da 14 em diante", waves.tank_share(3) == 0 && waves.tank_share(4) == 25 && waves.tank_share(14) == 45 && waves.tank_share(20) == 45)
+    let t4 = 0
+    let t20 = 0
+    for i in range(2000) do
+        if waves.pick_kind(4) == 2 then
+            t4 = t4 + 1
+        end
+        if waves.pick_kind(20) == 2 then
+            t20 = t20 + 1
+        end
+    end
+    check("a onda 20 sorteia bem mais tanks que a 4", t20 > t4 + 100)
+
+    let cheio: wld.World = wld.new_world()
+    waves.start_wave(ref cheio, 20)
+    for i in range(waves.MAX_ALIVE) do
+        append(ref cheio.enemies, combat.make_enemy(0, vec.V(100.0 + to_float(i) * 30.0, 100.0)))
+    end
+    waves.update(ref cheio, 0.016)
+    check("com o campo cheio, ninguem mais entra", length(cheio.enemies) == waves.MAX_ALIVE && cheio.to_spawn == waves.wave_size(20))
+    pop(ref cheio.enemies)
+    waves.update(ref cheio, 0.016)
+    check("aberta uma vaga, o proximo entra na hora", length(cheio.enemies) == waves.MAX_ALIVE && cheio.to_spawn == waves.wave_size(20) - 1)
 
     let fora = 0
     for i in range(300) do

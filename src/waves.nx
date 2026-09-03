@@ -6,12 +6,14 @@ use src.rng as rng
 use src.combat as combat
 use src.level as level
 
-let TOTAL = 8
+let TOTAL = 20
 let SPAWN_GAP = 0.35
+let MAX_ALIVE = 60          // teto em campo: a separacao entre inimigos e O(n^2), e 120 ja passa dos 16 ms por quadro
 let MARGIN = 40.0
 
+// wave_size cresce um pouco mais que linear: 7 na onda 1, 36 na 8, 114 na 20.
 func wave_size(n: int) -> int
-    return 4 + 3 * n
+    return 4 + 3 * n + n * n / 8
 end
 
 func start_wave(w: ref wld.World, n: int) -> void
@@ -20,8 +22,22 @@ func start_wave(w: ref wld.World, n: int) -> void
     w.spawn_cd = 0.0
 end
 
+// tank_share: a porcentagem de tanks na onda n. Zero antes da 4; da 4 em
+// diante sobe dois pontos por onda, de 25 ate o teto de 45 (onda 14).
+func tank_share(n: int) -> int
+    if n < 4 then
+        return 0
+    end
+    let s: int = 25 + 2 * (n - 4)
+    if s > 45 then
+        return 45
+    end
+    return s
+end
+
 // pick_kind abre o leque conforme a onda: chasers sozinhos na 1, rushers da 2
-// em diante, tanks da 4, com a fatia de chaser encolhendo.
+// em diante, tanks da 4 com a fatia de tank_share; rushers ficam em 30% e os
+// chasers levam o resto, que encolhe.
 func pick_kind(n: int) -> int
     if n <= 1 then
         return 0
@@ -33,13 +49,14 @@ func pick_kind(n: int) -> int
         end
         return 1
     end
-    if r < 45 then
-        return 0
+    let tank: int = tank_share(n)
+    if r < tank then
+        return 2
     end
-    if r < 75 then
+    if r < tank + 30 then
         return 1
     end
-    return 2
+    return 0
 end
 
 // edge_point sorteia um dos quatro lados e um ponto nele, recuado pela margem
@@ -81,6 +98,10 @@ func update(w: ref wld.World, dt: float) -> void
     end
     w.spawn_cd = w.spawn_cd - dt
     if w.spawn_cd > 0.0 then
+        return
+    end
+    // campo cheio: o proximo espera uma vaga, com o intervalo ja vencido
+    if length(w.enemies) >= MAX_ALIVE then
         return
     end
     w.spawn_cd = SPAWN_GAP
