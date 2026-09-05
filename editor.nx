@@ -1,6 +1,6 @@
 // editor.nx — o editor de colisao: abre o mapa com os retangulos de
 // data/obstacles.txt e deixa arrastar para criar, mover e redimensionar.
-// Ctrl+S grava o mesmo arquivo que deadrail.nx carrega. A logica mora em
+// Ctrl+S grava o mesmo arquivo que zombie_apocalypse.nx carrega. A logica mora em
 // src/editor e o desenho em render.editor_frame; aqui so traduzimos mouse e
 // teclado e movemos a camera.
 //     noxy editor.nx        (a partir da raiz do projeto)
@@ -21,7 +21,7 @@ if !loaded.ok then
     sys.exit(1)
 end
 
-game.init(960, 640, "Deadrail - editor de colisao")
+game.init(960, 640, "Zombie Apocalypse - editor de colisao")
 game.set_fps(60)
 render.load()
 

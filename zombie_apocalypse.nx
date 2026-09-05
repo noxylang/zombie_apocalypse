@@ -1,4 +1,4 @@
-// deadrail.nx — janela, loop e input. Nenhuma regra de jogo mora aqui: tudo o
+// zombie_apocalypse.nx — janela, loop e input. Nenhuma regra de jogo mora aqui: tudo o
 // que este arquivo faz e traduzir teclado e mouse em vetores e numeros, e
 // entregar para flow.advance.
 use sys
@@ -16,7 +16,7 @@ if !loaded.ok then
     sys.exit(1)
 end
 
-game.init(960, 640, "Deadrail")
+game.init(960, 640, "Zombie Apocalypse")
 game.set_fps(60)
 render.load()
 
