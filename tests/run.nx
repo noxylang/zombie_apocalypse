@@ -1,6 +1,7 @@
 // tests/run.nx — suite da simulacao. Roda sem abrir janela:
 //     noxy tests/run.nx      (a partir da raiz do projeto)
 use sys
+use math
 use src.vec as vec
 use src.rng as rng
 use src.world as wld
@@ -45,13 +46,6 @@ end
 
 func test_vec() -> void
     print("vec")
-    check("sqrt(0) = 0", near(vec.sqrt(0.0), 0.0, 0.0001))
-    check("sqrt(1) = 1", near(vec.sqrt(1.0), 1.0, 0.0001))
-    check("sqrt(2) = 1.4142", near(vec.sqrt(2.0), 1.41421356, 0.0001))
-    check("sqrt(0.25) = 0.5", near(vec.sqrt(0.25), 0.5, 0.0001))
-    check("sqrt(1e6) = 1000", near(vec.sqrt(1000000.0), 1000.0, 0.001))
-    check("sqrt de negativo nao explode", near(vec.sqrt(-4.0), 0.0, 0.0001))
-
     let n: vec.V = vec.norm(vec.V(3.0, 4.0))
     check("norm(3,4).x = 0.6", near(n.x, 0.6, 0.0001))
     check("norm(3,4).y = 0.8", near(n.y, 0.8, 0.0001))
@@ -224,6 +218,7 @@ func test_fire() -> void
     check("a bala do meio segue a mira", near(l.bullets[0].vel.y, 0.0, 0.001))
     check("as laterais abrem para os dois lados", l.bullets[1].vel.y * l.bullets[2].vel.y < 0.0)
     check("as tres saem na mesma velocidade", near(vec.len(l.bullets[1].vel), 600.0, 0.001) && near(vec.len(l.bullets[2].vel), 600.0, 0.001))
+    check("as laterais abrem 12 graus", near(l.bullets[1].vel.x / 600.0, math.cos(12.0 * math.PI / 180.0), 0.0001) && near(l.bullets[2].vel.x, l.bullets[1].vel.x, 0.0001))
 
     let c: wld.World = wld.new_world()
     c.player.aim = vec.V(1.0, 0.0)

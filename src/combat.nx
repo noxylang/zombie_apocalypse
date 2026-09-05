@@ -4,10 +4,10 @@ use src.vec as vec
 use src.world as wld
 use src.rng as rng
 use src.level as level
+use math
 
 let SHAKE_DECAY = 30.0
-let COS12 = 0.97814760
-let SIN12 = 0.20791169
+let SPREAD = 12.0 * math.PI / 180.0   // abertura de cada tiro lateral do leque
 let MUZZLE = 16.0
 let BULLET_LIFE = 1.2
 let INVULN = 0.6
@@ -71,9 +71,11 @@ func move_player(w: ref wld.World, mv: vec.V, aim: vec.V, dt: float) -> void
     w.time = w.time + dt
 end
 
-// rotate gira v pelo angulo cujo cosseno e seno foram passados. Os valores sao
-// constantes pre-computadas: Noxy nao tem sin/cos.
-func rotate(v: vec.V, c: float, s: float) -> vec.V
+// rotate gira v por ang radianos, no sentido horario na tela (y cresce para
+// baixo).
+func rotate(v: vec.V, ang: float) -> vec.V
+    let c = math.cos(ang)
+    let s = math.sin(ang)
     return vec.V(v.x * c - v.y * s, v.x * s + v.y * c)
 end
 
@@ -91,8 +93,8 @@ func fire(w: ref wld.World) -> void
     let d: vec.V = w.player.aim
     spawn_bullet(w, d)
     if w.player.shots >= 3 then
-        spawn_bullet(w, rotate(d, COS12, SIN12))
-        spawn_bullet(w, rotate(d, COS12, -SIN12))
+        spawn_bullet(w, rotate(d, SPREAD))
+        spawn_bullet(w, rotate(d, -SPREAD))
     end
 end
 
@@ -159,7 +161,7 @@ func update_enemies(w: ref wld.World, dt: float) -> void
                 let uy = 0.0
                 let push = minr * 0.5
                 if d2 > 0.0001 then
-                    let d: float = vec.sqrt(d2)
+                    let d = math.sqrt(d2)
                     ux = dx / d
                     uy = dy / d
                     push = (minr - d) * 0.5
@@ -246,46 +248,45 @@ func burst(w: ref wld.World, at: vec.V, kind: int) -> void
     end
 end
 
-// reap e o unico lugar que remove: Noxy nao apaga elemento de array, entao
-// filtrar e reconstruir.
+// reap e o unico lugar que remove. Percorre de tras para frente para o pop
+// por indice nao deslocar o que ainda falta visitar, e preserva a ordem.
 func reap(w: ref wld.World) -> void
-    let kb: wld.Bullet[] = []
-    for i in range(length(w.bullets)) do
-        if w.bullets[i].life > 0.0 then
-            append(ref kb, w.bullets[i])
+    let bi = length(w.bullets) - 1
+    while bi >= 0 do
+        if w.bullets[bi].life <= 0.0 then
+            pop(ref w.bullets, bi)
         end
+        bi = bi - 1
     end
-    w.bullets = kb
 
-    let ke: wld.Enemy[] = []
-    for i in range(length(w.enemies)) do
-        if w.enemies[i].hp > 0.0 then
-            append(ref ke, w.enemies[i])
-        else
+    let ei = length(w.enemies) - 1
+    while ei >= 0 do
+        if w.enemies[ei].hp <= 0.0 then
+            let dead = pop(ref w.enemies, ei)
             w.kills = w.kills + 1
-            burst(w, w.enemies[i].pos, w.enemies[i].kind)
+            burst(w, dead.pos, dead.kind)
         end
+        ei = ei - 1
     end
-    w.enemies = ke
 end
 
 // O arrasto e por quadro, nao por segundo: o jogo roda travado em 60 fps
 // (set_fps), e estilhacos vivem meio segundo.
 func update_particles(w: ref wld.World, dt: float) -> void
-    let keep: wld.Particle[] = []
-    for i in range(length(w.particles)) do
+    let i = length(w.particles) - 1
+    while i >= 0 do
         w.particles[i].pos.x = w.particles[i].pos.x + w.particles[i].vel.x * dt
         w.particles[i].pos.y = w.particles[i].pos.y + w.particles[i].vel.y * dt
         w.particles[i].vel = vec.scale(w.particles[i].vel, SHARD_DRAG)
         w.particles[i].life = w.particles[i].life - dt
-        if w.particles[i].life > 0.0 then
-            append(ref keep, w.particles[i])
+        if w.particles[i].life <= 0.0 then
+            pop(ref w.particles, i)
         end
+        i = i - 1
     end
-    w.particles = keep
 end
 
-// step fixa a ordem do quadro. deadrail.nx nao chama mais nada enquanto se joga.
+// step fixa a ordem do quadro. zombie_apocalypse.nx nao chama mais nada enquanto se joga.
 func step(w: ref wld.World, mv: vec.V, aim: vec.V, shooting: bool, dt: float) -> void
     move_player(w, mv, aim, dt)
     if shooting then

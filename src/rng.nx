@@ -10,12 +10,11 @@ func rand_int(lo: int, hi: int) -> int
     if hi <= lo then
         return lo
     end
-    let v: int = rand.random_int(lo, hi)
-    return v
+    return rand.random_int(lo, hi)
 end
 
 func rand_float(lo: float, hi: float) -> float
-    let v: int = rand.random_int(0, SCALE)
+    let v = rand.random_int(0, SCALE)
     return lo + (hi - lo) * (to_float(v) / to_float(SCALE))
 end
 
@@ -23,9 +22,9 @@ end
 // diagonais, o que e irrelevante para estilhacos, e evita trigonometria.
 func rand_dir() -> vec.V
     for i in range(8) do
-        let x: float = rand_float(-1.0, 1.0)
-        let y: float = rand_float(-1.0, 1.0)
-        let l: float = vec.len(vec.V(x, y))
+        let x = rand_float(-1.0, 1.0)
+        let y = rand_float(-1.0, 1.0)
+        let l = vec.len(vec.V(x, y))
         if l > 0.1 then
             return vec.V(x / l, y / l)
         end

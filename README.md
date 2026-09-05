@@ -1,4 +1,4 @@
-# Deadrail
+# Zombie Apocalypse
 
 Um shooter top-down de vinte ondas num pátio ferroviário abandonado, escrito
 em [Noxy](https://github.com/estevaofon/noxy) sobre o
@@ -10,7 +10,7 @@ círculos e retângulos.
 
 ## Jogar
 
-    noxy deadrail.nx
+    noxy zombie_apocalypse.nx
 
 A partir da raiz do projeto — os módulos são resolvidos a partir do diretório
 de trabalho, não do arquivo.
@@ -54,12 +54,12 @@ A simulação — `src/vec`, `src/rng`, `src/world`, `src/level`, `src/combat`,
 coluna e espelhamento), também sem engine. `src/editor` é a lógica do editor
 de colisão (seleção, alças, arrastar, desfazer), igualmente sem engine.
 `src/render` é o único módulo que desenha, e os dois pontos de entrada,
-`deadrail.nx` e `editor.nx`, só traduzem teclado e mouse em vetores e
+`zombie_apocalypse.nx` e `editor.nx`, só traduzem teclado e mouse em vetores e
 entregam para `flow.advance` ou para `src/editor`.
 
 Essa separação é o que permite testar o jogo inteiro sem abrir janela:
 
-    noxy tests/run.nx        # 299 asserts sobre a simulação, o mapa, a animação e o editor, sem janela
+    noxy tests/run.nx        # 294 asserts sobre a simulação, o mapa, a animação e o editor, sem janela
     noxy tests/smoke.nx      # abre a janela, percorre as 4 telas e o editor, sai sozinho
 
 `run.nx` cobre a lógica; `smoke.nx` existe porque erro de comando de desenho
@@ -80,7 +80,7 @@ barris e pneus também ficam de fora.
 Jogador e inimigos são empurrados para fora dos retângulos depois de andar
 (`level.push_out`), o que dá o deslize ao longo das paredes; balas morrem ao
 entrar num retângulo; o spawn na borda re-sorteia até cair em ponto livre.
-`World.obstacles` começa vazio — `deadrail.nx` instala o que `level.load`
+`World.obstacles` começa vazio — `zombie_apocalypse.nx` instala o que `level.load`
 leu do arquivo, e os testes usam retângulos próprios. O ponto de partida é
 `world.START`.
 
@@ -159,27 +159,5 @@ tank maior); os raios de colisão continuam em `combat.make_enemy`.
 Ao regenerar uma sheet no Gemini, ajuste `PLAYER` ou `ENEMIES` no script se a
 posição das linhas mudar, rode-o a partir da raiz e confira `FRAMES` e
 `ENEMY_FRAMES` em `src/anim.nx`.
-
-## Nota de implementação
-
-Noxy não tem módulo `math` — nem `sqrt`, nem `sin`, `cos` ou `atan2`. Duas
-consequências moldaram o código:
-
-- `src/vec.nx` traz um `sqrt` por Newton-Raphson, com a semente dobrando até
-  passar do valor para manter poucas iterações.
-- Nenhuma rotação usa ângulo. Direção é sempre vetor unitário, e as formas se
-  montam a partir dela e da sua perpendicular `perp(v) = V(-v.y, v.x)`. O
-  leque de tiros gira por uma matriz com seno e cosseno pré-computados.
-
-Outras armadilhas da linguagem, para quem for mexer: chamada de módulo pelo
-namespace não infere tipo (`let v: int = rand.random_int(...)`; com
-`use m select f` infere), `let xs = []` sem anotação não infere o elemento
-(em argumento e em campo de struct o `[]` recebe o tipo do destino),
-variáveis de módulo são somente-leitura de fora, e não há remoção de
-elemento de array por índice — filtrar é reconstruir.
-
-Essas limitações estão registradas, com reprodução e proposta, em
-[estevaofon/noxy#126](https://github.com/estevaofon/noxy/issues/126). Quando
-o Noxy as cobrir, esta nota sai.
 
 O desenho e o design completos estão em `docs/superpowers/`.

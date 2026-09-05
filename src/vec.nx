@@ -1,6 +1,6 @@
-// src/vec.nx — algebra vetorial. Noxy nao tem modulo math, entao sqrt e
-// implementado aqui e nenhuma rotacao usa angulo: direcao e vetor unitario,
-// giro de 90 graus e perp().
+// src/vec.nx — algebra vetorial. Direcao e sempre vetor unitario; giro de 90
+// graus e perp(); comprimento vem de math.hypot.
+use math
 
 struct V
     x: float,
@@ -8,22 +8,6 @@ struct V
 end
 
 let EPS = 0.000001
-
-// sqrt por Newton-Raphson. A semente dobra ate passar de v, o que mantem o
-// numero de iteracoes pequeno mesmo para valores grandes.
-func sqrt(v: float) -> float
-    if v <= 0.0 then
-        return 0.0
-    end
-    let g = 1.0
-    while g * g < v do
-        g = g * 2.0
-    end
-    for i in range(8) do
-        g = 0.5 * (g + v / g)
-    end
-    return g
-end
 
 func add(a: V, b: V) -> V
     return V(a.x + b.x, a.y + b.y)
@@ -38,11 +22,11 @@ func scale(a: V, k: float) -> V
 end
 
 func len(a: V) -> float
-    return sqrt(a.x * a.x + a.y * a.y)
+    return math.hypot(a.x, a.y)
 end
 
 func norm(a: V) -> V
-    let l: float = len(a)
+    let l = len(a)
     if l < EPS then
         return V(0.0, 0.0)
     end

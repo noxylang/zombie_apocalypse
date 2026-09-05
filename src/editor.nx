@@ -3,6 +3,7 @@
 // desfazer, sobre a lista plana de retangulos de src/level. Nao conhece a
 // engine: o ponto de entrada traduz o mouse em coordenadas do mapa e chama
 // press, drag e release; render.editor_frame desenha o resultado.
+use math
 
 let HANDLE = 8.0        // raio de captura das alcas, em px do mapa
 let MIN = 4.0           // menor lado que um arraste cria ou deixa
@@ -33,10 +34,7 @@ end
 
 // snap arredonda para o inteiro mais proximo: retangulo e pixel.
 func snap(v: float) -> float
-    if v < 0.0 then
-        return to_float(to_int(v - 0.5))
-    end
-    return to_float(to_int(v + 0.5))
+    return math.round(v)
 end
 
 func clamp(v: float, lo: float, hi: float) -> float
@@ -285,22 +283,15 @@ func release(ed: ref Editor) -> void
     ed.dirty = true
 end
 
-// delete_sel apaga o selecionado (filtrar e reconstruir).
+// delete_sel apaga o selecionado: os quatro floats do retangulo, na ordem.
 func delete_sel(ed: ref Editor) -> void
     if ed.sel < 0 then
         return
     end
     push_undo(ed)
-    let keep: float[] = []
-    for i in range(length(ed.rects) / 4) do
-        if i != ed.sel then
-            append(ref keep, ed.rects[i * 4])
-            append(ref keep, ed.rects[i * 4 + 1])
-            append(ref keep, ed.rects[i * 4 + 2])
-            append(ref keep, ed.rects[i * 4 + 3])
-        end
+    for k in range(4) do
+        pop(ref ed.rects, ed.sel * 4)
     end
-    ed.rects = keep
     ed.sel = -1
     ed.dirty = true
 end

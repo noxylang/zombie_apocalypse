@@ -4,6 +4,7 @@
 // ponto de partida mora em world.START.
 use io
 use strings
+use math
 use src.vec as vec
 use src.world as wld
 
@@ -181,7 +182,7 @@ func push_out(p: vec.V, r: float, rects: float[]) -> vec.V
             continue
         end
         if d2 > vec.EPS then
-            let d: float = vec.sqrt(d2)
+            let d = math.sqrt(d2)
             let push: float = r - d
             out = vec.V(out.x + dx / d * push, out.y + dy / d * push)
             continue
