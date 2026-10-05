@@ -3,7 +3,7 @@
 <img width="800" alt="Captura de tela de 2026-09-06 11-53-03" src="https://github.com/user-attachments/assets/cd265feb-6f87-462c-ad92-ca4a0789d9dd" />
 
 Um shooter top-down de vinte ondas num pátio ferroviário abandonado, escrito
-em [Noxy](https://github.com/estevaofon/noxy) sobre o
+em [Noxy](https://github.com/noxylang/noxy) sobre o
 [noxy_game_engine](https://github.com/estevaofon/noxy_game_engine).
 
 O chão é um mapa desenhado (veja "Mapa e colisão"); jogador e inimigos são
